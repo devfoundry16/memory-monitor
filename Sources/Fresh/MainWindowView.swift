@@ -13,8 +13,10 @@ struct MainWindowView: View {
                 .sheet(isPresented: $store.showingSettings) {
                     SettingsSheet()
                 }
-            ProcessListView()
-                .environment(\.colorScheme, Theme.bodyScheme)
+            Group {
+                if store.tab == .clean { CleanerListView() } else { ProcessListView() }
+            }
+            .environment(\.colorScheme, Theme.bodyScheme)
         }
         .background(Theme.Palette.canvas)
         .frame(minWidth: 1100, minHeight: 680)

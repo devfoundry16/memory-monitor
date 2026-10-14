@@ -141,7 +141,7 @@ private struct ThemeCard: View {
     }
 }
 
-/// A themed checkbox: 2px-radius square that fills NVIDIA green when on.
+/// A checkbox with an icon and a title.
 private struct CheckRow: View {
     let title: String
     let symbol: String
@@ -150,18 +150,7 @@ private struct CheckRow: View {
     var body: some View {
         Button { isOn.toggle() } label: {
             HStack(spacing: Theme.Space.md) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Theme.radius)
-                        .fill(isOn ? Theme.Palette.primary : Theme.Palette.canvas)
-                    RoundedRectangle(cornerRadius: Theme.radius)
-                        .strokeBorder(isOn ? Theme.Palette.primary : Theme.Palette.hairline, lineWidth: 1)
-                    if isOn {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .heavy))
-                            .foregroundStyle(Theme.Palette.onPrimary)
-                    }
-                }
-                .frame(width: 18, height: 18)
+                CheckBox(isOn: isOn)
                 Image(systemName: symbol)
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.Palette.body)

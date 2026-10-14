@@ -49,7 +49,10 @@ import Testing
         while Date().timeIntervalSince(start) < 0.3 { x += sin(x) }
         let after = try #require(ProcessSampler.resourceUsage(of: getpid()))
         let spent = Double(after.cpuTime - before.cpuTime) / 1e9
-        #expect(spent > 0.2 && spent < 0.5, "a 0.3 s busy loop should cost ~0.3 s of CPU, got \(spent)")
+        // CPU time is for the whole test process, and other tests run in parallel on up to 10
+        // cores, so allow up to ~10 × 0.3 s extra. A wrong mach-tick conversion is off by ~41×
+        // (0.007 s or 12.5 s), which this still catches.
+        #expect(spent > 0.2 && spent < 4, "a 0.3 s busy loop should cost ~0.3 s of CPU, got \(spent)")
     }
 }
 

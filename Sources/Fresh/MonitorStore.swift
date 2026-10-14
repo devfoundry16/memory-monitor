@@ -44,6 +44,20 @@ enum Resource: Hashable, CaseIterable {
     case memory, cpu, gpu
 }
 
+/// The window's tabs: one per resource, plus the cache cleaner.
+enum MainTab: Hashable, CaseIterable {
+    case memory, cpu, gpu, clean
+
+    var resource: Resource? {
+        switch self {
+        case .memory: .memory
+        case .cpu: .cpu
+        case .gpu: .gpu
+        case .clean: nil
+        }
+    }
+}
+
 /// A process or an app (with its helpers) awaiting force-stop confirmation.
 struct StopRequest: Identifiable {
     let row: DisplayRow
@@ -126,7 +140,12 @@ final class MonitorStore {
     let gpuInfo = GPUSampler.info()
     let bootTime = CPUSampler.bootTime()
 
-    /// Header tab. Switching it re-sorts the list by that resource.
+    /// The selected tab. Resource tabs also set `resource`.
+    var tab: MainTab = .memory {
+        didSet { if let resource = tab.resource { self.resource = resource } }
+    }
+
+    /// The resource shown. Switching it re-sorts the list by that resource.
     var resource: Resource = .memory {
         didSet {
             guard resource != oldValue else { return }

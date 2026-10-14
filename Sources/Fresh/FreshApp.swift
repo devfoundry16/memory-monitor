@@ -17,7 +17,8 @@ struct FreshApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = MonitorStore()
-    private lazy var mainWindow = MainWindowController(store: store)
+    private let cleaner = CleanerStore()
+    private lazy var mainWindow = MainWindowController(store: store, cleaner: cleaner)
     private var statusItem: StatusItemController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -116,10 +117,12 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 @MainActor
 final class MainWindowController {
     private let store: MonitorStore
+    private let cleaner: CleanerStore
     private var window: NSWindow?
 
-    init(store: MonitorStore) {
+    init(store: MonitorStore, cleaner: CleanerStore) {
         self.store = store
+        self.cleaner = cleaner
     }
 
     func show() {
@@ -141,7 +144,7 @@ final class MainWindowController {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        let hosting = NSHostingView(rootView: MainWindowView().environment(store))
+        let hosting = NSHostingView(rootView: MainWindowView().environment(store).environment(cleaner))
         hosting.sizingOptions = [.minSize]
         window.contentView = hosting
         window.center()

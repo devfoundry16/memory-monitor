@@ -10,7 +10,7 @@ struct HeaderView: View {
         @Bindable var store = store
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             HStack(spacing: Theme.Space.md) {
-                ResourceTabs(selection: $store.resource)
+                MainTabs(selection: $store.tab)
                 Spacer()
                 Button { store.showingSettings = true } label: {
                     Image(systemName: "gearshape")
@@ -23,10 +23,11 @@ struct HeaderView: View {
                 .help("Settings: theme and menu bar")
             }
 
-            switch store.resource {
+            switch store.tab {
             case .memory: MemoryHeader()
             case .cpu: CPUHeader()
             case .gpu: GPUHeader()
+            case .clean: CleanerHeader()
             }
 
             if let error = store.errorMessage {
@@ -41,17 +42,17 @@ struct HeaderView: View {
 }
 
 /// Header tabs on black: the active tab inverts to white, NVIDIA's pill-tab on a dark surface.
-private struct ResourceTabs: View {
-    @Binding var selection: Resource
+private struct MainTabs: View {
+    @Binding var selection: MainTab
 
     var body: some View {
         HStack(spacing: Theme.Space.xs) {
-            ForEach(Resource.allCases, id: \.self) { resource in
-                let active = resource == selection
-                Button { selection = resource } label: {
+            ForEach(MainTab.allCases, id: \.self) { tab in
+                let active = tab == selection
+                Button { selection = tab } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: resource.symbol).font(.system(size: 12, weight: .semibold))
-                        Text(Theme.label(resource.title)).font(Theme.Typeface.captionMd)
+                        Image(systemName: tab.symbol).font(.system(size: 12, weight: .semibold))
+                        Text(Theme.label(tab.title)).font(Theme.Typeface.captionMd)
                     }
                     .foregroundStyle(active ? Theme.Palette.frame : Theme.Palette.onFrameMute)
                     .padding(.horizontal, 14)
@@ -69,6 +70,11 @@ private struct ResourceTabs: View {
             }
         }
     }
+}
+
+extension MainTab {
+    var title: String { resource?.title ?? "Clean" }
+    var symbol: String { resource?.symbol ?? "sparkles" }
 }
 
 extension Resource {
@@ -93,7 +99,7 @@ extension Resource {
 // MARK: - Shared pieces
 
 /// Eyebrow, big green figure with a white companion, and a muted subtitle.
-private struct HeroFigure: View {
+struct HeroFigure: View {
     let eyebrow: String
     let value: String
     var companion: String?
@@ -122,9 +128,9 @@ private struct HeroFigure: View {
 }
 
 /// The hero row's height is fixed so switching tabs doesn't move the process list.
-private let heroHeight: CGFloat = 92
+let heroHeight: CGFloat = 92
 
-private struct CardGrid<Content: View>: View {
+struct CardGrid<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {

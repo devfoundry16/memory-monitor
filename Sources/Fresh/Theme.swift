@@ -201,6 +201,51 @@ struct DestructiveButtonStyle: ButtonStyle {
     }
 }
 
+/// A themed checkbox: a small square that fills with the accent when on, with a dash when
+/// only some of what it stands for is selected.
+struct CheckBox: View {
+    enum Value { case off, on, mixed }
+    let value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    init(isOn: Bool) {
+        self.value = isOn ? .on : .off
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .fill(value == .off ? Theme.Palette.canvas : Theme.Palette.primary)
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .strokeBorder(value == .off ? Theme.Palette.hairline : Theme.Palette.primary, lineWidth: 1)
+            if value != .off {
+                Image(systemName: value == .on ? "checkmark" : "minus")
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(Theme.Palette.onPrimary)
+            }
+        }
+        .frame(width: 18, height: 18)
+    }
+}
+
+/// A small outlined label, e.g. "In use".
+struct Badge: View {
+    let text: String
+    var color: Color = Theme.Palette.mute
+
+    var body: some View {
+        Text(Theme.label(text))
+            .font(Theme.Typeface.captionMd)
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .frame(height: 18)
+            .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(color, lineWidth: 1))
+    }
+}
+
 /// `pill-tab` segmented control: the active tab takes the selection colours.
 struct PillTabs<Value: Hashable>: View {
     let options: [(Value, String)]
