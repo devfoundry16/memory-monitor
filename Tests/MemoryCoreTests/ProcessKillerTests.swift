@@ -42,6 +42,81 @@ import Testing
         #expect(ProcessKiller.isAlive(process.processIdentifier))
     }
 
+    @Test func refusesWhenStartTimeDiffers() async throws {
+        // Same PID and name, different start time: what a reused PID looks like.
+        let process = try spawn("/bin/sleep", ["10000"])
+        defer { process.terminate() }
+        let start = try #require(ProcessSampler.resourceUsage(of: process.processIdentifier)?.startTime)
+        let result = await ProcessKiller.forceStop(
+            pid: process.processIdentifier, expectedName: "sleep", expectedStart: start + 1)
+        #expect(result == .alreadyExited)
+        #expect(ProcessKiller.isAlive(process.processIdentifier))
+    }
+
+    @Test func matchingStartTimeStops() async throws {
+        let process = try spawn("/bin/sleep", ["10000"])
+        let start = try #require(ProcessSampler.resourceUsage(of: process.processIdentifier)?.startTime)
+        let result = await ProcessKiller.forceStop(
+            pid: process.processIdentifier, expectedName: "sleep", expectedStart: start)
+        #expect(result == .stopped)
+    }
+
+    @Test func fingerprintIsStableAndSafe() async throws {
+        let process = try spawn("/bin/sleep", ["10000"])
+        defer { process.terminate() }
+        let command = ProcessKiller.fingerprintCommand(pid: process.processIdentifier)
+        #expect(!command.contains("\""), "must embed in AppleScript without escaping")
+        func fingerprint() throws -> String {
+            let shell = Process()
+            let pipe = Pipe()
+            shell.executableURL = URL(fileURLWithPath: "/bin/sh")
+            shell.arguments = ["-c", command]
+            shell.standardOutput = pipe
+            try shell.run()
+            shell.waitUntilExit()
+            return String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let first = try fingerprint()
+        #expect(first.count == 32 && first.allSatisfy(\.isHexDigit))
+        #expect(try fingerprint() == first)
+    }
+
+    /// Runs the root command as the current user, which exercises the same checks
+    /// without an administrator prompt.
+    @Test func adminCommandChecksFingerprintBeforeSignalling() throws {
+        func sh(_ command: String) throws -> (Int32, String) {
+            let shell = Process()
+            let pipe = Pipe()
+            shell.executableURL = URL(fileURLWithPath: "/bin/sh")
+            shell.arguments = ["-c", command]
+            shell.standardOutput = pipe
+            try shell.run()
+            shell.waitUntilExit()
+            let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            return (shell.terminationStatus, out.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        let process = try spawn("/bin/sleep", ["10000"])
+        let pid = process.processIdentifier
+        defer { if ProcessKiller.isAlive(pid) { process.terminate() } }
+        let (_, fingerprint) = try sh(ProcessKiller.fingerprintCommand(pid: pid))
+
+        // A stale fingerprint (PID reused) must leave the process alone.
+        let wrong = String(repeating: "0", count: 32)
+        let (refused, _) = try sh(ProcessKiller.adminShellCommand(pid: pid, fingerprint: wrong))
+        #expect(refused == 3)
+        #expect(ProcessKiller.isAlive(pid))
+
+        // The matching fingerprint stops it.
+        let command = ProcessKiller.adminShellCommand(pid: pid, fingerprint: fingerprint)
+        #expect(!command.contains("\""))
+        let (stopped, _) = try sh(command)
+        #expect(stopped == 0)
+        process.waitUntilExit()
+        #expect(!ProcessKiller.isAlive(pid))
+    }
+
     @Test func protectedPIDIsNeverSignalled() async {
         #expect(await ProcessKiller.forceStop(pid: 1, expectedName: "launchd") == .protected)
     }

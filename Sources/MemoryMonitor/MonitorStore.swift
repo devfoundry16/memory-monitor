@@ -401,7 +401,8 @@ final class MonitorStore {
         let row = request.row
         stopping.insert(row.id)
         Task {
-            let result = await ProcessKiller.forceStop(pid: row.process.pid, expectedName: row.process.name)
+            let result = await ProcessKiller.forceStop(
+                pid: row.process.pid, expectedName: row.process.name, expectedStart: row.process.startTime)
             var name = row.displayName
             if result == .stopped, let group = request.group {
                 // Child helpers exit with the app, but XPC services can outlive it.
@@ -411,7 +412,8 @@ final class MonitorStore {
                     for helper in leftovers {
                         tasks.addTask {
                             _ = await ProcessKiller.forceStop(
-                                pid: helper.pid, expectedName: helper.name, gracePeriod: .milliseconds(500))
+                                pid: helper.pid, expectedName: helper.name, expectedStart: helper.startTime,
+                                gracePeriod: .milliseconds(500))
                         }
                     }
                 }
