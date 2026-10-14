@@ -13,7 +13,8 @@ enum StatusLabel {
         var widest: [String] = []
     }
 
-    private static let widestPercent = "100%"
+    /// Slots fit two digits, the usual case. Only 100% widens the label, by one digit.
+    private static let widestPercent = "99%"
 
     static func segments(for store: MonitorStore) -> [Segment] {
         let settings = store.menuBarSettings
@@ -77,24 +78,27 @@ enum StatusLabel {
                 .max() ?? 0
             return (icon, text, slot)
         }
-        let widths = parts.map { part in
-            (part.icon.map { $0.size.width + (part.slot > 0 ? iconGap : 0) } ?? 0) + part.slot
+        // Every figure gets a fixed slot and its number starts right after its icon, so icons
+        // never move as values change. A shorter number leaves spare room at the end of its
+        // slot; half a digit of fixed padding on the left balances that, keeping the two
+        // edges within half a digit of each other.
+        let leadingPad = (ceil(NSAttributedString(string: "0", attributes: attributes).size().width) / 2).rounded()
+        func iconWidth(_ part: (icon: NSImage?, text: NSAttributedString, slot: CGFloat)) -> CGFloat {
+            part.icon.map { $0.size.width + (part.slot > 0 ? iconGap : 0) } ?? 0
         }
-        let width = widths.reduce(0, +) + segmentGap * CGFloat(max(parts.count - 1, 0))
+        let gaps = segmentGap * CGFloat(max(parts.count - 1, 0))
+        let width = parts.reduce(leadingPad + gaps) { $0 + iconWidth($1) + $1.slot }
 
         let image = NSImage(size: NSSize(width: max(width, 1), height: height), flipped: false) { _ in
-            var x: CGFloat = 0
-            for (part, partWidth) in zip(parts, widths) {
-                var cursor = x
+            var x = leadingPad
+            for part in parts {
                 if let icon = part.icon {
-                    icon.draw(in: NSRect(x: cursor, y: (height - icon.size.height) / 2,
+                    icon.draw(in: NSRect(x: x, y: (height - icon.size.height) / 2,
                                          width: icon.size.width, height: icon.size.height))
-                    cursor += icon.size.width + iconGap
+                    x += iconWidth(part)
                 }
-                // Right-aligned in its slot: the icon stays put and the digits line up.
-                let textSize = part.text.size()
-                part.text.draw(at: NSPoint(x: cursor + part.slot - ceil(textSize.width), y: (height - textSize.height) / 2))
-                x += partWidth + segmentGap
+                part.text.draw(at: NSPoint(x: x, y: (height - part.text.size().height) / 2))
+                x += part.slot + segmentGap
             }
             return true
         }
