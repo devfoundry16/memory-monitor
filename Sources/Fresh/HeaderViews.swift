@@ -135,24 +135,6 @@ private struct CardGrid<Content: View>: View {
     }
 }
 
-/// A single 0...1 fraction as a thin bar.
-private struct FractionBar: View {
-    let fraction: Double
-    var color: Color = Theme.Palette.primary
-
-    var body: some View {
-        GeometryReader { proxy in
-            Rectangle()
-                .fill(color)
-                .frame(width: proxy.size.width * CGFloat(min(max(fraction, 0), 1)))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.Palette.frameCard)
-        }
-        .frame(height: 8)
-        .clipShape(.rect(cornerRadius: Theme.radius))
-    }
-}
-
 struct StatCard: View {
     let title: String
     let value: String
@@ -222,8 +204,8 @@ private struct MemoryHeader: View {
                             + " + \(ByteFormatter.format($0.purgeable)) purgeable"
                     } ?? "")
                     .help("""
-                        Reserved by hardware: \(MemoryUsageBar.reservedHelp)
-                        Purgeable: \(MemoryUsageBar.purgeableHelp)
+                        Reserved by hardware: Set aside at startup for the chip's built-in processors. macOS can't use it.
+                        Purgeable: Caches apps can drop instantly when memory is needed.
                         """)
                 Spacer()
                 if let memory = store.memory {
@@ -233,11 +215,16 @@ private struct MemoryHeader: View {
             }
             .frame(height: heroHeight)
 
-            if let memory = store.memory {
-                MemoryUsageBar(memory: memory)
-            } else {
-                FractionBar(fraction: 0)
-            }
+            HistoryGraph(
+                resource: .memory,
+                series: [
+                    GraphSeries(name: "App Memory", color: Theme.pressureColor(store.memory?.pressure ?? .normal)),
+                    GraphSeries(name: "Wired", color: Theme.Palette.onFrameMute),
+                    GraphSeries(name: "Compressed", color: Theme.Palette.ash),
+                    GraphSeries(name: "Purgeable", color: Theme.Palette.ash.opacity(0.45)),
+                    GraphSeries(name: "Reserved by hardware", color: Theme.Palette.ash.opacity(0.25)),
+                ],
+                describe: describe)
 
             CardGrid {
                 StatCard(
@@ -281,46 +268,20 @@ private struct MemoryHeader: View {
         return store.snapshot.restrictedCount > 0 ? "≥ \(total)" : total
     }
 
+    /// "12.81 GB used (80%) · App 5.20 GB · Wired 2.51 GB · Compressed 4.10 GB"
+    private func describe(_ point: MetricHistory.Point) -> String {
+        guard let total = store.memory?.total else { return "" }
+        func size(_ fraction: Double) -> String { ByteFormatter.format(UInt64(fraction * Double(total))) }
+        let parts = zip(["App", "Wired", "Compressed"], point.values).map { "\($0) \(size($1))" }
+        return (["\(size(point.total)) used (\(PercentFormatter.format(point.total)))"] + parts).joined(separator: " · ")
+    }
+
     private func bytes(_ keyPath: KeyPath<SystemMemory, UInt64>) -> String {
         store.memory.map { ByteFormatter.format($0[keyPath: keyPath]) } ?? "—"
     }
 
     private func percentOfRAM(_ keyPath: KeyPath<SystemMemory, UInt64>) -> String? {
         store.memory.map { "\(PercentFormatter.format($0.fractionOfTotal($0[keyPath: keyPath]))) of RAM" }
-    }
-}
-
-/// Used vs. total, split into app / wired / compressed / purgeable / hardware reserved. The accent (or the pressure colour)
-/// carries app memory; the rest stays neutral so each theme keeps a single accent.
-private struct MemoryUsageBar: View {
-    static let reservedHelp = "Set aside at startup for the chip's built-in processors. macOS can't use it."
-    static let purgeableHelp = "Caches apps can drop instantly when memory is needed."
-
-    let memory: SystemMemory
-
-    var body: some View {
-        GeometryReader { proxy in
-            let total = max(Double(memory.total), 1)
-            HStack(spacing: 1) {
-                segment(memory.appMemory, Theme.pressureColor(memory.pressure), total, proxy.size.width)
-                segment(memory.wired, Theme.Palette.onFrameMute, total, proxy.size.width)
-                segment(memory.compressed, Theme.Palette.ash, total, proxy.size.width)
-                segment(memory.purgeable, Theme.Palette.ash.opacity(0.45), total, proxy.size.width)
-                    .help("Purgeable: \(ByteFormatter.format(memory.purgeable)). \(Self.purgeableHelp)")
-                segment(memory.hardwareReserved, Theme.Palette.ash.opacity(0.25), total, proxy.size.width)
-                    .help("Reserved by hardware: \(ByteFormatter.format(memory.hardwareReserved)). \(Self.reservedHelp)")
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.Palette.frameCard)
-        }
-        .frame(height: 8)
-        .clipShape(.rect(cornerRadius: Theme.radius))
-        .accessibilityLabel("Memory used \(ByteFormatter.format(memory.used)) of \(ByteFormatter.format(memory.total))")
-    }
-
-    private func segment(_ bytes: UInt64, _ color: Color, _ total: Double, _ width: CGFloat) -> some View {
-        Rectangle().fill(color).frame(width: max(0, width * CGFloat(Double(bytes) / total) - 1))
     }
 }
 
@@ -345,7 +306,16 @@ private struct CPUHeader: View {
             }
             .frame(height: heroHeight)
 
-            FractionBar(fraction: cpu?.total ?? 0)
+            HistoryGraph(
+                resource: .cpu,
+                series: [
+                    GraphSeries(name: "User", color: Theme.Palette.primary),
+                    GraphSeries(name: "System", color: Theme.Palette.onFrameMute),
+                ],
+                describe: { point in
+                    let parts = zip(["User", "System"], point.values).map { "\($0) \(PercentFormatter.format($1))" }
+                    return (["\(PercentFormatter.format(point.total)) busy"] + parts).joined(separator: " · ")
+                })
 
             CardGrid {
                 StatCard(
@@ -454,7 +424,10 @@ private struct GPUHeader: View {
             }
             .frame(height: heroHeight)
 
-            FractionBar(fraction: gpu?.device ?? 0)
+            HistoryGraph(
+                resource: .gpu,
+                series: [GraphSeries(name: "GPU", color: Theme.Palette.primary)],
+                describe: { "\(PercentFormatter.format($0.total)) busy" })
 
             CardGrid {
                 StatCard(

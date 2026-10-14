@@ -76,6 +76,35 @@ enum SortKey: Hashable {
     case name, pid, user, parent, memory, cpu, gpu, threads
 }
 
+/// How far back the header graphs reach.
+enum GraphRange: String, CaseIterable {
+    case oneMinute, tenMinutes, oneHour
+
+    var seconds: Double {
+        switch self {
+        case .oneMinute: 60
+        case .tenMinutes: 600
+        case .oneHour: 3600
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .oneMinute: "1M"
+        case .tenMinutes: "10M"
+        case .oneHour: "1H"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .oneMinute: "Last minute"
+        case .tenMinutes: "Last 10 minutes"
+        case .oneHour: "Last hour"
+        }
+    }
+}
+
 enum ProcessFilter: Hashable {
     case all, apps
 }
@@ -108,6 +137,18 @@ final class MonitorStore {
             case .gpu: .gpu
             }
         }
+    }
+
+    /// Recent values for the header graphs, as fractions of the whole (0...1):
+    /// memory = app, wired, compressed, purgeable, hardware reserved; CPU = user, system;
+    /// GPU = device utilisation.
+    private(set) var history = Dictionary(uniqueKeysWithValues: Resource.allCases.map {
+        ($0, MetricHistory(span: GraphRange.oneHour.seconds))
+    })
+    /// When the latest history sample was taken, on the same clock as the samples.
+    private(set) var historyTime = 0.0
+    var graphRange = GraphRange(rawValue: UserDefaults.standard.string(forKey: "graphRange") ?? "") ?? .tenMinutes {
+        didSet { UserDefaults.standard.set(graphRange.rawValue, forKey: "graphRange") }
     }
 
     var menuBarSettings = MenuBarSettings.load() {
@@ -166,6 +207,18 @@ final class MonitorStore {
         }
     }
 
+    private func recordHistory(memory: SystemMemory?, cpu: CPUUsage?, gpu: GPUStats?) {
+        // Keeps running while the Mac sleeps, so sleep shows as a gap in the graphs.
+        let now = Double(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)) / 1e9
+        historyTime = now
+        if let memory, memory.total > 0 {
+            let parts = [memory.appMemory, memory.wired, memory.compressed, memory.purgeable, memory.hardwareReserved]
+            history[.memory]?.append(parts.map { memory.fractionOfTotal($0) }, at: now)
+        }
+        if let cpu { history[.cpu]?.append([cpu.user, cpu.system], at: now) }
+        if let gpu { history[.gpu]?.append([gpu.device], at: now) }
+    }
+
     func refresh(includeProcesses: Bool) async {
         let systemSampler = systemSampler
         let system = await Task.detached {
@@ -187,6 +240,7 @@ final class MonitorStore {
         }
         if system.load != loadAverage { loadAverage = system.load }
         if system.gpu != gpu { gpu = system.gpu }
+        recordHistory(memory: try? system.memory?.get(), cpu: system.ticks == nil ? nil : cpu, gpu: system.gpu)
 
         guard includeProcesses else { return }
         let sampler = processSampler
