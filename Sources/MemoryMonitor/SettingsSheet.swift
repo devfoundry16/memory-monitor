@@ -52,7 +52,7 @@ struct SettingsSheet: View {
                     VStack(alignment: .leading, spacing: Theme.Space.sm) {
                         Eyebrow("Memory as")
                         PillTabs(
-                            options: [(MenuBarSettings.MemoryStyle.both, "Size + %"), (.percent, "Percent"), (.size, "Size")],
+                            options: [(MenuBarSettings.MemoryStyle.percent, "Percent"), (.size, "Size"), (.both, "Size + %")],
                             selection: $store.menuBarSettings.memoryStyle)
                             .disabled(!store.menuBarSettings.showMemory)
                             .opacity(store.menuBarSettings.showMemory ? 1 : 0.4)

@@ -10,7 +10,8 @@ struct MenuBarSettings: Codable, Equatable {
     var showCPU = true
     var showGPU = true
     var showIcons = true
-    var memoryStyle = MemoryStyle.both
+    /// Percent by default, matching CPU and GPU; size is opt-in.
+    var memoryStyle = MemoryStyle.percent
 
     private static let key = "menuBarSettings"
 
