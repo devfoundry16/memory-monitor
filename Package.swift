@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "MemoryMonitor",
+    name: "Fresh",
     platforms: [.macOS(.v14)],
     targets: [
         .target(
@@ -10,7 +10,7 @@ let package = Package(
             linkerSettings: [.linkedFramework("IOKit")]
         ),
         .executableTarget(
-            name: "MemoryMonitor",
+            name: "Fresh",
             dependencies: ["MemoryCore"]
         ),
         .testTarget(

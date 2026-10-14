@@ -2,3 +2,5 @@
 *.app
 .DS_Store
 .swiftpm/
+dist/
+*.dmg

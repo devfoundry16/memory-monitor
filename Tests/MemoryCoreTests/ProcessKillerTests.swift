@@ -6,7 +6,7 @@ import Testing
     @Test func protectedProcesses() {
         #expect(ProcessKiller.protection(pid: 0, name: "kernel_task") == .protected)
         #expect(ProcessKiller.protection(pid: 1, name: "launchd") == .protected)
-        #expect(ProcessKiller.protection(pid: 500, name: "MemoryMonitor", ownPID: 500) == .protected)
+        #expect(ProcessKiller.protection(pid: 500, name: "Fresh", ownPID: 500) == .protected)
     }
 
     @Test func criticalProcesses() {

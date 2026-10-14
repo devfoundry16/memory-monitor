@@ -2,7 +2,8 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// A visual theme built from one of the DESIGN.md files in VoltAgent/awesome-design-md.
+/// A visual theme whose palette comes from a DESIGN.md file in VoltAgent/awesome-design-md
+/// (MIT licensed). Themes carry neutral names; the source file is noted on each.
 /// Values marked "derived" are not in that file and were picked to fit the system.
 struct AppTheme: Identifiable {
     enum Family {
@@ -60,14 +61,22 @@ struct AppTheme: Identifiable {
 }
 
 extension AppTheme {
-    static let all: [AppTheme] = [.nvidia, .claude, .meta, .binance, .spotify, .linear, .vercel]
+    static let all: [AppTheme] = [.volt, .terracotta, .cobalt, .gold, .midnight, .indigo, .mono]
 
     static func named(_ id: String?) -> AppTheme {
-        all.first { $0.id == id } ?? .nvidia
+        let id = id.flatMap { legacyIDs[$0] } ?? id
+        return all.first { $0.id == id } ?? .volt
     }
 
-    static let nvidia = AppTheme(
-        id: "nvidia", name: "NVIDIA", summary: "Green-black energy, 2px corners",
+    /// Saved choices from before themes got neutral names.
+    private static let legacyIDs = [
+        "nvidia": "volt", "claude": "terracotta", "meta": "cobalt", "binance": "gold",
+        "spotify": "midnight", "linear": "indigo", "vercel": "mono", "apple": "cobalt",
+    ]
+
+    /// Palette from design-md/nvidia.
+    static let volt = AppTheme(
+        id: "volt", name: "Volt", summary: "Electric green on black, sharp corners",
         accent: Color(hex: 0x76B900), accentPressed: Color(hex: 0x5A8D00), onAccent: Color(hex: 0x000000),
         frame: Color(hex: 0x000000), frameCard: Color(hex: 0x1A1A1A), frameHairline: Color(hex: 0x5E5E5E),
         onFrame: Color(hex: 0xFFFFFF), onFrameMute: Color.white.opacity(0.7), frameIsDark: true,
@@ -80,8 +89,9 @@ extension AppTheme {
         textFamily: .named("Arial"), headingFamily: .named("Arial"), // NVIDIA-EMEA's documented fallback
         cornerMark: true, uppercaseLabels: true)
 
-    static let claude = AppTheme(
-        id: "claude", name: "Claude", summary: "Terracotta on cream, serif",
+    /// Palette from design-md/claude.
+    static let terracotta = AppTheme(
+        id: "terracotta", name: "Terracotta", summary: "Warm clay on cream, serif",
         accent: Color(hex: 0xCC785C), accentPressed: Color(hex: 0xA9583E), onAccent: Color(hex: 0xFFFFFF),
         frame: Color(hex: 0x181715), frameCard: Color(hex: 0x252320), frameHairline: Color(hex: 0x3A3835), // derived
         onFrame: Color(hex: 0xFAF9F5), onFrameMute: Color(hex: 0xA09D96), frameIsDark: true,
@@ -94,8 +104,9 @@ extension AppTheme {
         textFamily: .system, headingFamily: .systemSerif, // Styrene / Copernicus are proprietary
         cornerMark: false, uppercaseLabels: false)
 
-    static let meta = AppTheme(
-        id: "meta", name: "Meta", summary: "Meta Blue, pill buttons, soft cards",
+    /// Palette from design-md/meta.
+    static let cobalt = AppTheme(
+        id: "cobalt", name: "Cobalt", summary: "Deep blue, pill buttons",
         accent: Color(hex: 0x0064E0), accentPressed: Color(hex: 0x0457CB), onAccent: Color(hex: 0xFFFFFF),
         frame: Color(hex: 0x0A1317), frameCard: Color(hex: 0x1C1E21), frameHairline: Color(hex: 0x444950),
         onFrame: Color(hex: 0xFFFFFF), onFrameMute: Color(hex: 0xBCC0C4), frameIsDark: true,
@@ -108,8 +119,9 @@ extension AppTheme {
         textFamily: .system, headingFamily: .system, // Optimistic VF is proprietary
         cornerMark: false, uppercaseLabels: false)
 
-    static let binance = AppTheme(
-        id: "binance", name: "Binance", summary: "Binance Yellow on near-black",
+    /// Palette from design-md/binance.
+    static let gold = AppTheme(
+        id: "gold", name: "Gold", summary: "Yellow on near-black",
         accent: Color(hex: 0xFCD535), accentPressed: Color(hex: 0xF0B90B), onAccent: Color(hex: 0x181A20),
         frame: Color(hex: 0x0B0E11), frameCard: Color(hex: 0x1E2329), frameHairline: Color(hex: 0x2B3139),
         onFrame: Color(hex: 0xFFFFFF), onFrameMute: Color(hex: 0x929AA5), frameIsDark: true,
@@ -123,8 +135,9 @@ extension AppTheme {
         textFamily: .system, headingFamily: .system, // BinanceNova is proprietary; its fallback is the system font
         cornerMark: false, uppercaseLabels: false)
 
-    static let spotify = AppTheme(
-        id: "spotify", name: "Spotify", summary: "Green on near-black, all dark",
+    /// Palette from design-md/spotify.
+    static let midnight = AppTheme(
+        id: "midnight", name: "Midnight", summary: "Green on all-dark",
         accent: Color(hex: 0x1ED760), accentPressed: Color(hex: 0x1DB954), onAccent: Color(hex: 0x000000),
         frame: Color(hex: 0x121212), frameCard: Color(hex: 0x181818), frameHairline: Color(hex: 0x4D4D4D),
         onFrame: Color(hex: 0xFFFFFF), onFrameMute: Color(hex: 0xB3B3B3), frameIsDark: true,
@@ -137,8 +150,9 @@ extension AppTheme {
         textFamily: .named("Helvetica Neue"), headingFamily: .named("Helvetica Neue"), // Circular's fallback
         cornerMark: false, uppercaseLabels: true)
 
-    static let linear = AppTheme(
-        id: "linear", name: "Linear", summary: "Near-black, indigo accent, precise",
+    /// Palette from design-md/linear.app.
+    static let indigo = AppTheme(
+        id: "indigo", name: "Indigo", summary: "Indigo on near-black",
         accent: Color(hex: 0x5E6AD2), accentPressed: Color(hex: 0x5E69D1), onAccent: Color(hex: 0xFFFFFF),
         frame: Color(hex: 0x010102), frameCard: Color(hex: 0x0F1011), frameHairline: Color(hex: 0x23252A),
         onFrame: Color(hex: 0xF7F8F8), onFrameMute: Color(hex: 0x8A8F98), frameIsDark: true,
@@ -151,8 +165,9 @@ extension AppTheme {
         textFamily: .system, headingFamily: .system, // Linear Text / Inter are not on macOS
         cornerMark: false, uppercaseLabels: false)
 
-    static let vercel = AppTheme(
-        id: "vercel", name: "Vercel", summary: "Black and white, light header",
+    /// Palette from design-md/vercel.
+    static let mono = AppTheme(
+        id: "mono", name: "Mono", summary: "Black and white, light header",
         accent: Color(hex: 0x171717), accentPressed: Color(hex: 0x000000), onAccent: Color(hex: 0xFFFFFF),
         frame: Color(hex: 0xFAFAFA), frameCard: Color(hex: 0xFFFFFF), frameHairline: Color(hex: 0xEBEBEB),
         onFrame: Color(hex: 0x171717), onFrameMute: Color(hex: 0x4D4D4D), frameIsDark: false,

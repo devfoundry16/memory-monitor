@@ -3,14 +3,14 @@ import MemoryCore
 import SwiftUI
 
 @main
-struct MemoryMonitorApp: App {
+struct FreshApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     // The menu bar item and the monitor window are AppKit-managed (see AppDelegate),
     // so SwiftUI only needs a placeholder scene. A never-inserted MenuBarExtra shows
     // nothing; a lone Settings scene would open an empty window at launch.
     var body: some Scene {
-        MenuBarExtra("Memory Monitor", isInserted: .constant(false)) { EmptyView() }
+        MenuBarExtra("Fresh", isInserted: .constant(false)) { EmptyView() }
     }
 }
 
@@ -137,7 +137,7 @@ final class MainWindowController {
             contentRect: NSRect(x: 0, y: 0, width: 1240, height: 880),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false)
-        window.title = "Memory Monitor"
+        window.title = "Fresh"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
