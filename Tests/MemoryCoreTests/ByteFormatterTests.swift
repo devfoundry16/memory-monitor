@@ -56,8 +56,26 @@ import Testing
 
     @Test func fractionOfTotal() {
         let memory = SystemMemory(
-            total: 16, appMemory: 4, wired: 2, compressed: 2, cachedFiles: 0,
-            swapTotal: 0, swapUsed: 0, pressure: .normal)
+            total: 16, appMemory: 4, wired: 2, compressed: 2, cachedFiles: 0, purgeable: 0,
+            hardwareReserved: 0, free: 8, fileBacked: 0, swapTotal: 0, swapUsed: 0, pressure: .normal)
         #expect(memory.fractionOfTotal(memory.used) == 0.5)
+    }
+
+    /// Activity Monitor's Memory Used is everything but free and file-backed pages: app memory,
+    /// wired, compressed, purgeable (also counted in cached files) and hardware-reserved memory.
+    @Test func usedMatchesActivityMonitor() {
+        let memory = SystemMemory(
+            total: 100, appMemory: 40, wired: 15, compressed: 20, cachedFiles: 18, purgeable: 2,
+            hardwareReserved: 4, free: 3, fileBacked: 16, swapTotal: 0, swapUsed: 0, pressure: .normal)
+        #expect(memory.used == 81)
+        #expect(memory.used == memory.appMemory + memory.wired + memory.compressed
+            + memory.purgeable + memory.hardwareReserved)
+    }
+
+    @Test func usedNeverUnderflows() {
+        let memory = SystemMemory(
+            total: 10, appMemory: 8, wired: 4, compressed: 0, cachedFiles: 6, purgeable: 0,
+            hardwareReserved: 0, free: 5, fileBacked: 6, swapTotal: 0, swapUsed: 0, pressure: .normal)
+        #expect(memory.used == 0)
     }
 }

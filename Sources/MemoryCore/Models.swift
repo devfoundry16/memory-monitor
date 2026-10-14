@@ -20,12 +20,26 @@ public struct SystemMemory: Sendable, Equatable {
     public var wired: UInt64
     public var compressed: UInt64
     public var cachedFiles: UInt64
+    /// Caches apps marked as discardable. macOS can drop them instantly when memory runs short.
+    /// Activity Monitor counts them in both Memory Used and Cached Files.
+    public var purgeable: UInt64
+    /// Physical memory the firmware sets aside at startup (`hw.memsize - hw.memsize_usable`).
+    /// macOS never gets to use it.
+    public var hardwareReserved: UInt64
+    /// Free pages, not counting speculative read-ahead.
+    public var free: UInt64
+    /// Pages holding file contents (cached files, not counting purgeable memory).
+    public var fileBacked: UInt64
     public var swapTotal: UInt64
     public var swapUsed: UInt64
     public var pressure: MemoryPressure
 
-    /// "Memory Used" in Activity Monitor: app memory + wired + compressed.
-    public var used: UInt64 { appMemory + wired + compressed }
+    /// "Memory Used" in Activity Monitor: everything except free pages and file-backed pages.
+    /// That comes to app memory + wired + compressed + purgeable + hardware reserved.
+    public var used: UInt64 {
+        let unused = free + fileBacked
+        return total > unused ? total - unused : 0
+    }
 
     /// `bytes` as a fraction of physical memory.
     public func fractionOfTotal(_ bytes: UInt64) -> Double {
@@ -34,13 +48,18 @@ public struct SystemMemory: Sendable, Equatable {
 
     public init(
         total: UInt64, appMemory: UInt64, wired: UInt64, compressed: UInt64,
-        cachedFiles: UInt64, swapTotal: UInt64, swapUsed: UInt64, pressure: MemoryPressure
+        cachedFiles: UInt64, purgeable: UInt64, hardwareReserved: UInt64, free: UInt64, fileBacked: UInt64,
+        swapTotal: UInt64, swapUsed: UInt64, pressure: MemoryPressure
     ) {
         self.total = total
         self.appMemory = appMemory
         self.wired = wired
         self.compressed = compressed
         self.cachedFiles = cachedFiles
+        self.purgeable = purgeable
+        self.hardwareReserved = hardwareReserved
+        self.free = free
+        self.fileBacked = fileBacked
         self.swapTotal = swapTotal
         self.swapUsed = swapUsed
         self.pressure = pressure

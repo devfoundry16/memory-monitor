@@ -11,6 +11,7 @@ public struct SystemMemorySampler: Sendable {
     private let host: host_t
     private let pageSize: UInt64
     private let total: UInt64
+    private let hardwareReserved: UInt64
 
     public init() throws {
         host = mach_host_self()
@@ -19,6 +20,8 @@ public struct SystemMemorySampler: Sendable {
         guard kr == KERN_SUCCESS else { throw SamplerError.kernel(kr) }
         pageSize = UInt64(size)
         total = try sysctlValue("hw.memsize", as: UInt64.self)
+        let usable = (try? sysctlValue("hw.memsize_usable", as: UInt64.self)) ?? total
+        hardwareReserved = total - min(usable, total)
     }
 
     public func sample() throws -> SystemMemory {
@@ -43,6 +46,11 @@ public struct SystemMemorySampler: Sendable {
             wired: UInt64(stats.wire_count) * pageSize,
             compressed: UInt64(stats.compressor_page_count) * pageSize,
             cachedFiles: (UInt64(stats.external_page_count) + purgeable) * pageSize,
+            purgeable: purgeable * pageSize,
+            hardwareReserved: hardwareReserved,
+            // free_count includes speculative read-ahead, which Activity Monitor counts as used.
+            free: UInt64(stats.free_count - min(stats.speculative_count, stats.free_count)) * pageSize,
+            fileBacked: UInt64(stats.external_page_count) * pageSize,
             swapTotal: swap.xsu_total,
             swapUsed: swap.xsu_used,
             pressure: MemoryPressure(kernelLevel: level)

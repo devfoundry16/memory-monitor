@@ -218,7 +218,13 @@ private struct MemoryHeader: View {
                     companion: store.memory.map { PercentFormatter.format($0.fractionOfTotal($0.used)) },
                     subtitle: store.memory.map {
                         "of \(ByteFormatter.format($0.total)) physical memory · Used = App Memory + Wired + Compressed"
+                            + " + \(ByteFormatter.format($0.hardwareReserved)) reserved by hardware"
+                            + " + \(ByteFormatter.format($0.purgeable)) purgeable"
                     } ?? "")
+                    .help("""
+                        Reserved by hardware: \(MemoryUsageBar.reservedHelp)
+                        Purgeable: \(MemoryUsageBar.purgeableHelp)
+                        """)
                 Spacer()
                 if let memory = store.memory {
                     PressureBadge(pressure: memory.pressure)
@@ -284,9 +290,12 @@ private struct MemoryHeader: View {
     }
 }
 
-/// Used vs. total, split into app / wired / compressed. The accent (or the pressure colour)
+/// Used vs. total, split into app / wired / compressed / purgeable / hardware reserved. The accent (or the pressure colour)
 /// carries app memory; the rest stays neutral so each theme keeps a single accent.
 private struct MemoryUsageBar: View {
+    static let reservedHelp = "Set aside at startup for the chip's built-in processors. macOS can't use it."
+    static let purgeableHelp = "Caches apps can drop instantly when memory is needed."
+
     let memory: SystemMemory
 
     var body: some View {
@@ -296,6 +305,10 @@ private struct MemoryUsageBar: View {
                 segment(memory.appMemory, Theme.pressureColor(memory.pressure), total, proxy.size.width)
                 segment(memory.wired, Theme.Palette.onFrameMute, total, proxy.size.width)
                 segment(memory.compressed, Theme.Palette.ash, total, proxy.size.width)
+                segment(memory.purgeable, Theme.Palette.ash.opacity(0.45), total, proxy.size.width)
+                    .help("Purgeable: \(ByteFormatter.format(memory.purgeable)). \(Self.purgeableHelp)")
+                segment(memory.hardwareReserved, Theme.Palette.ash.opacity(0.25), total, proxy.size.width)
+                    .help("Reserved by hardware: \(ByteFormatter.format(memory.hardwareReserved)). \(Self.reservedHelp)")
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
