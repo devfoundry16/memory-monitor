@@ -56,35 +56,73 @@ func render(pixels: Int) -> CGImage {
     ctx.setLineWidth(4)
     ctx.strokePath()
 
-    // Gauge: a 270° track with a fresh-green reading most of the way round.
-    let radius: CGFloat = 268, width: CGFloat = 78
-    let start = CGFloat.pi * 1.25, end = -CGFloat.pi * 0.25
+    // Leaf: an almond-shaped blade in Fresh's greens, tilted to the upper right, with a
+    // midrib, side veins and a short stem. Drawn upright, then rotated about the centre.
+    ctx.saveGState()
+    ctx.translateBy(x: center.x + 10, y: center.y - 6)
+    ctx.rotate(by: -0.62)
+
+    let blade = CGMutablePath()
+    blade.move(to: CGPoint(x: 0, y: -290))
+    blade.addCurve(to: CGPoint(x: 0, y: 330), control1: CGPoint(x: 330, y: -130), control2: CGPoint(x: 70, y: 270))
+    blade.addCurve(to: CGPoint(x: 0, y: -290), control1: CGPoint(x: -60, y: 270), control2: CGPoint(x: -300, y: -120))
+    blade.closeSubpath()
+
+    // Stem first, so the blade covers where they meet.
+    let stem = CGMutablePath()
+    stem.move(to: CGPoint(x: 0, y: -250))
+    stem.addQuadCurve(to: CGPoint(x: -34, y: -410), control: CGPoint(x: 6, y: -350))
+    ctx.addPath(stem)
     ctx.setLineCap(.round)
-    ctx.setLineWidth(width)
-    ctx.addArc(center: center, radius: radius, startAngle: start, endAngle: end, clockwise: true)
-    ctx.setStrokeColor(color(0xffffff, 0.09))
+    ctx.setLineWidth(30)
+    ctx.setStrokeColor(color(0x2fbf71))
     ctx.strokePath()
 
-    let reading = start - (start - end) * 0.72
     ctx.saveGState()
-    ctx.addArc(center: center, radius: radius, startAngle: start, endAngle: reading, clockwise: true)
-    ctx.replacePathWithStrokedPath()
-    ctx.clip()
-    let green = CGGradient(colorsSpace: nil, colors: [color(0x2fbf71), color(0xb6f04a)] as CFArray,
-                           locations: [0, 1])!
-    ctx.drawLinearGradient(green, start: CGPoint(x: 230, y: 250), end: CGPoint(x: 700, y: 820), options: [])
+    ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 30, color: color(0x000000, 0.45))
+    ctx.addPath(blade)
+    ctx.setFillColor(color(0x2fbf71))
+    ctx.fillPath()
     ctx.restoreGState()
 
-    // Memory, CPU and GPU as three bars inside the gauge.
-    let barWidth: CGFloat = 60, gap: CGFloat = 34, floor: CGFloat = 392
-    let heights: [CGFloat] = [150, 236, 190]
-    let left = center.x - (barWidth * 3 + gap * 2) / 2
-    for (index, height) in heights.enumerated() {
-        let rect = CGRect(x: left + CGFloat(index) * (barWidth + gap), y: floor, width: barWidth, height: height)
-        ctx.addPath(CGPath(roundedRect: rect, cornerWidth: barWidth / 2, cornerHeight: barWidth / 2, transform: nil))
-        ctx.setFillColor(color(0xffffff, index == 1 ? 1 : 0.82))
-        ctx.fillPath()
+    ctx.saveGState()
+    ctx.addPath(blade)
+    ctx.clip()
+    let green = CGGradient(colorsSpace: nil, colors: [color(0x22a862), color(0x5fd36f), color(0xc4f25a)] as CFArray,
+                           locations: [0, 0.5, 1])!
+    ctx.drawLinearGradient(green, start: CGPoint(x: -120, y: -290), end: CGPoint(x: 120, y: 330), options: [])
+    // A soft sheen on one half of the blade.
+    let sheen = CGMutablePath()
+    sheen.move(to: CGPoint(x: 0, y: -290))
+    sheen.addCurve(to: CGPoint(x: 0, y: 330), control1: CGPoint(x: 330, y: -130), control2: CGPoint(x: 70, y: 270))
+    sheen.addLine(to: CGPoint(x: 0, y: -290))
+    ctx.addPath(sheen)
+    ctx.setFillColor(color(0xffffff, 0.10))
+    ctx.fillPath()
+
+    // Veins: a midrib and four pairs angled toward the tip.
+    let vein = color(0x0e3b22, 0.55)
+    ctx.setStrokeColor(vein)
+    ctx.setLineCap(.round)
+    let midrib = CGMutablePath()
+    midrib.move(to: CGPoint(x: 0, y: -270))
+    midrib.addQuadCurve(to: CGPoint(x: 0, y: 290), control: CGPoint(x: 14, y: 20))
+    ctx.addPath(midrib)
+    ctx.setLineWidth(16)
+    ctx.strokePath()
+    ctx.setLineWidth(9)
+    for (y, reach) in [(CGFloat(-170), CGFloat(130)), (-60, 135), (50, 115), (150, 78)] {
+        for side in [CGFloat(1), -1] {
+            let veinPath = CGMutablePath()
+            veinPath.move(to: CGPoint(x: side * 4, y: y))
+            veinPath.addQuadCurve(to: CGPoint(x: side * reach, y: y + 95),
+                                  control: CGPoint(x: side * reach * 0.45, y: y + 20))
+            ctx.addPath(veinPath)
+            ctx.strokePath()
+        }
     }
+    ctx.restoreGState()
+    ctx.restoreGState()
     return ctx.makeImage()!
 }
 
