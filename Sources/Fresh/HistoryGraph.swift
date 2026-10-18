@@ -7,6 +7,16 @@ struct GraphSeries {
     let color: Color
 }
 
+/// How a history graph maps values to height.
+enum GraphScale {
+    /// Values are fractions of a whole: 1 is the top.
+    case fraction
+    /// Values have no natural maximum (e.g. bytes per second). The top follows the visible
+    /// peak, rounded up to a readable figure and never below `minimum`, so an idle graph
+    /// doesn't blow noise up to full height. `label` formats the top for the caption.
+    case auto(minimum: Double, label: (Double) -> String)
+}
+
 /// The header's history graph: a caption with the range picker, then the values stacked
 /// over time (0 at the bottom, the whole at the top). Hovering shows the values at that moment.
 struct HistoryGraph: View {
@@ -16,6 +26,7 @@ struct HistoryGraph: View {
     let series: [GraphSeries]
     /// The hover readout for one point, e.g. "12.81 GB used".
     let describe: (MetricHistory.Point) -> String
+    var scale = GraphScale.fraction
 
     /// Pointer position while hovering. Plain `State` rather than `@State`, whose macro needs Xcode.
     private let hover = State<CGFloat?>(initialValue: nil)
@@ -28,6 +39,7 @@ struct HistoryGraph: View {
         @Bindable var store = store
         let end = store.historyTime
         let start = end - store.graphRange.seconds
+        let ceiling = ceiling(from: start)
         VStack(alignment: .leading, spacing: Theme.Space.sm) {
             GeometryReader { proxy in
                 let segments = store.history[resource]?.segments(
@@ -36,7 +48,8 @@ struct HistoryGraph: View {
                 let hovered = hover.wrappedValue.flatMap {
                     nearest(to: $0, in: segments, start: start, end: end, width: proxy.size.width)
                 }
-                let plot = Plot(segments: segments, start: start, end: end, size: proxy.size, bands: series.count)
+                let plot = Plot(segments: segments, start: start, end: end, size: proxy.size, bands: series.count,
+                                ceiling: ceiling)
                 ZStack(alignment: .topLeading) {
                     // Plain shapes rather than Canvas, which costs ~55 MB and extra CPU here.
                     plot.grid().stroke(Theme.Palette.frameHairline, lineWidth: 1)
@@ -74,12 +87,26 @@ struct HistoryGraph: View {
                 Text(Theme.label(store.graphRange.caption))
                     .font(Theme.Typeface.captionMd)
                     .foregroundStyle(Theme.Palette.onFrameMute)
+                if case .auto(_, let label) = scale {
+                    Text("· \(Theme.label("Top")) \(label(ceiling))")
+                        .font(Theme.Typeface.captionMd)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.Palette.onFrameMute)
+                        .help("The graph rescales to fit the busiest moment shown.")
+                }
                 Spacer()
                 RangeTabs(selection: $store.graphRange)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(resource.title) history, \(store.graphRange.caption.lowercased())")
+    }
+
+    /// The value drawn at the top of the graph.
+    private func ceiling(from start: Double) -> Double {
+        guard case .auto(let minimum, _) = scale else { return 1 }
+        let peak = store.history[resource]?.samples.lazy.filter { $0.time >= start }.map(\.total).max() ?? 0
+        return MetricHistory.niceCeiling(max(peak, minimum))
     }
 
     private func nearest(to locationX: CGFloat, in segments: [[MetricHistory.Point]],
@@ -108,15 +135,17 @@ private struct Plot {
     let end: Double
     let size: CGSize
     let bands: Int
+    /// The value at the top edge.
+    var ceiling = 1.0
 
     func x(_ time: Double) -> CGFloat { size.width * CGFloat((time - start) / (end - start)) }
-    func y(_ value: Double) -> CGFloat { size.height * CGFloat(1 - min(max(value, 0), 1)) }
+    func y(_ value: Double) -> CGFloat { size.height * CGFloat(1 - min(max(value / ceiling, 0), 1)) }
 
     func grid() -> Path {
         var path = Path()
         for level in [0.25, 0.5, 0.75] {
-            path.move(to: CGPoint(x: 0, y: y(level)))
-            path.addLine(to: CGPoint(x: size.width, y: y(level)))
+            path.move(to: CGPoint(x: 0, y: y(level * ceiling)))
+            path.addLine(to: CGPoint(x: size.width, y: y(level * ceiling)))
         }
         return path
     }

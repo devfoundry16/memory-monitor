@@ -1,7 +1,7 @@
 import MemoryCore
 import SwiftUI
 
-// MARK: - Header (black frame) with Memory / CPU / GPU tabs
+// MARK: - Header (black frame) with Memory / CPU / GPU / Disk tabs
 
 struct HeaderView: View {
     @Environment(MonitorStore.self) private var store
@@ -27,6 +27,7 @@ struct HeaderView: View {
             case .memory: MemoryHeader()
             case .cpu: CPUHeader()
             case .gpu: GPUHeader()
+            case .disk: DiskHeader()
             case .clean: CleanerHeader()
             }
 
@@ -83,6 +84,7 @@ extension Resource {
         case .memory: "Memory"
         case .cpu: "CPU"
         case .gpu: "GPU"
+        case .disk: "Disk"
         }
     }
 
@@ -92,6 +94,7 @@ extension Resource {
         case .memory: "memorychip"
         case .cpu: "cpu"
         case .gpu: "cube.transparent"
+        case .disk: "internaldrive"
         }
     }
 }
@@ -151,7 +154,8 @@ struct StatCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xs) {
-            Eyebrow(title, color: Theme.Palette.onFrameMute)
+            // Accent title, bright number, muted percentage: each reads as its own thing.
+            Eyebrow(title, color: Theme.Palette.cardTitle)
             HStack(alignment: .firstTextBaseline, spacing: Theme.Space.sm) {
                 Text(value)
                     .font(Theme.Typeface.cardValue)
@@ -162,7 +166,7 @@ struct StatCard: View {
                     Text(percent)
                         .font(Theme.Typeface.cardPercent)
                         .lineLimit(1)
-                        .foregroundStyle(Theme.Palette.primary)
+                        .foregroundStyle(Theme.Palette.onFrameMute)
                 }
             }
             .monospacedDigit()
@@ -486,5 +490,139 @@ private struct GPUHeader: View {
     private func percentOfRAM(_ bytes: UInt64?) -> String? {
         guard let bytes, let memory = store.memory else { return nil }
         return "\(PercentFormatter.format(memory.fractionOfTotal(bytes))) of RAM"
+    }
+}
+
+// MARK: - Disk
+
+private struct DiskHeader: View {
+    @Environment(MonitorStore.self) private var store
+
+    var body: some View {
+        let volume = store.volume
+        let io = store.diskIO
+        VStack(alignment: .leading, spacing: Theme.Space.xl) {
+            HStack(alignment: .center, spacing: Theme.Space.xl) {
+                HeroFigure(
+                    eyebrow: "Disk Used",
+                    value: volume.map { DiskFormatter.format($0.used) } ?? "—",
+                    companion: volume.map { PercentFormatter.format($0.usedFraction) },
+                    subtitle: subtitle)
+                    .help("Purgeable: Caches, iCloud copies and snapshots macOS removes by itself when space runs low.")
+                Spacer()
+                if let volume {
+                    CapacityBar(volume: volume)
+                }
+            }
+            .frame(height: heroHeight)
+
+            HistoryGraph(
+                resource: .disk,
+                series: [
+                    GraphSeries(name: "Read", color: Theme.Palette.primary),
+                    GraphSeries(name: "Written", color: Theme.Palette.onFrameMute),
+                ],
+                describe: { point in
+                    let read = point.values.first ?? 0
+                    let written = point.values.count > 1 ? point.values[1] : 0
+                    return "\(DiskFormatter.formatRate(read)) read · \(DiskFormatter.formatRate(written)) written"
+                },
+                scale: .auto(minimum: 1_000_000, label: DiskFormatter.formatRate))
+
+            CardGrid {
+                StatCard(
+                    title: "Available", value: size(\.available), percent: percentOfDisk(\.available),
+                    summary: "Free space plus what macOS can clear when needed. Finder shows this figure.")
+                StatCard(
+                    title: "Purgeable", value: size(\.purgeable), percent: percentOfDisk(\.purgeable),
+                    summary: "Caches, iCloud copies and snapshots macOS removes when space runs low.")
+                StatCard(
+                    title: "Free", value: size(\.free), percent: percentOfDisk(\.free),
+                    summary: "Space no file uses at all.")
+                StatCard(
+                    title: "Busiest", value: topDisk?.diskRate.map(DiskFormatter.formatRate) ?? "—",
+                    summary: "App (with its helpers) or process reading and writing the most.",
+                    detail: topDisk?.name)
+                StatCard(
+                    title: "Data Read", value: rate(io?.readPerSecond),
+                    summary: "Read from all disks over the last second.",
+                    detail: io.map { "\(DiskFormatter.format($0.totals.bytesRead)) since startup" })
+                StatCard(
+                    title: "Data Written", value: rate(io?.writePerSecond),
+                    summary: "Written to all disks over the last second.",
+                    detail: io.map { "\(DiskFormatter.format($0.totals.bytesWritten)) since startup" })
+                StatCard(
+                    title: "Operations", value: io.map { (Int($0.readOpsPerSecond) + Int($0.writeOpsPerSecond)).formatted() + "/s" } ?? "—",
+                    summary: "Separate reads and writes per second. Many small ones can slow a disk more than a few big ones.",
+                    detail: io.map { "\(Int($0.readOpsPerSecond).formatted()) reads · \(Int($0.writeOpsPerSecond).formatted()) writes" })
+                StatCard(
+                    title: "Other Volumes", value: store.otherVolumes.count.formatted(),
+                    summary: "Other mounted volumes, such as external drives, disk images or extra APFS volumes.",
+                    detail: store.otherVolumes.first.map { first in
+                        let more = store.otherVolumes.count > 1 ? " · +\(store.otherVolumes.count - 1) more" : ""
+                        return "\(first.name) · \(DiskFormatter.format(first.available)) free\(more)"
+                    })
+            }
+        }
+    }
+
+    private var subtitle: String {
+        guard let volume = store.volume else { return "Reading the startup disk…" }
+        let format = volume.format.isEmpty ? "" : " · \(volume.format)"
+        return "of \(DiskFormatter.format(volume.total)) · \(volume.name)\(format)"
+            + " · \(DiskFormatter.format(volume.purgeable)) purgeable"
+    }
+
+    private var topDisk: TopEntry? { store.topEntry { $0.diskRate } }
+
+    private func rate(_ bytesPerSecond: Double?) -> String {
+        bytesPerSecond.map(DiskFormatter.formatRate) ?? "—"
+    }
+
+    private func size(_ keyPath: KeyPath<VolumeStats, UInt64>) -> String {
+        store.volume.map { DiskFormatter.format($0[keyPath: keyPath]) } ?? "—"
+    }
+
+    private func percentOfDisk(_ keyPath: KeyPath<VolumeStats, UInt64>) -> String? {
+        guard let volume = store.volume, volume.total > 0 else { return nil }
+        return "\(PercentFormatter.format(Double(volume[keyPath: keyPath]) / Double(volume.total))) of disk"
+    }
+}
+
+/// The startup disk as one bar: used, purgeable, then free, with a small legend.
+private struct CapacityBar: View {
+    let volume: VolumeStats
+
+    private static let width: CGFloat = 240
+
+    var body: some View {
+        let total = Double(max(volume.total, 1))
+        let used = Self.width * CGFloat(Double(volume.used) / total)
+        let purgeable = Self.width * CGFloat(Double(volume.purgeable) / total)
+        VStack(alignment: .leading, spacing: Theme.Space.sm) {
+            HStack(spacing: 0) {
+                Rectangle().fill(Theme.Palette.primary).frame(width: used)
+                Rectangle().fill(Theme.Palette.ash).frame(width: purgeable)
+                Spacer(minLength: 0)
+            }
+            .frame(width: Self.width, height: 10)
+            .background(Theme.Palette.frameCard)
+            .clipShape(.rect(cornerRadius: Theme.radius))
+            HStack(spacing: Theme.Space.md) {
+                legend("Used", Theme.Palette.primary)
+                legend("Purgeable", Theme.Palette.ash)
+                legend("Free", Theme.Palette.frameCard)
+            }
+        }
+        .help("\(DiskFormatter.format(volume.used)) used · \(DiskFormatter.format(volume.purgeable)) purgeable"
+              + " · \(DiskFormatter.format(volume.free)) free")
+    }
+
+    private func legend(_ title: String, _ color: Color) -> some View {
+        HStack(spacing: 4) {
+            Rectangle().fill(color).frame(width: 8, height: 8)
+                .overlay(Rectangle().strokeBorder(Theme.Palette.frameHairline, lineWidth: 1))
+            Text(Theme.label(title)).font(Theme.Typeface.captionMd).foregroundStyle(Theme.Palette.onFrameMute)
+        }
     }
 }

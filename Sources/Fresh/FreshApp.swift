@@ -18,7 +18,8 @@ struct FreshApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = MonitorStore()
     private let cleaner = CleanerStore()
-    private lazy var mainWindow = MainWindowController(store: store, cleaner: cleaner)
+    private let quick = QuickListStore()
+    private lazy var mainWindow = MainWindowController(store: store, cleaner: cleaner, quick: quick)
     private var statusItem: StatusItemController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -29,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
         statusItem = StatusItemController(
-            store: store,
+            store: store, quick: quick,
             onOpenMonitor: { [weak self] in
                 self?.statusItem?.closePopover()
                 self?.mainWindow.show()
@@ -54,11 +55,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
     private let store: MonitorStore
+    private let quick: QuickListStore
     private let onOpenMonitor: () -> Void
     private let onOpenSettings: () -> Void
 
-    init(store: MonitorStore, onOpenMonitor: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
+    init(store: MonitorStore, quick: QuickListStore, onOpenMonitor: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
         self.store = store
+        self.quick = quick
         self.onOpenMonitor = onOpenMonitor
         self.onOpenSettings = onOpenSettings
         super.init()
@@ -82,7 +85,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             // doesn't re-render on every sample.
             let content = NSHostingController(
                 rootView: MenuBarView(onOpenMonitor: onOpenMonitor, onOpenSettings: onOpenSettings)
-                    .environment(store))
+                    .environment(store)
+                    .environment(quick))
             content.sizingOptions = .preferredContentSize
             popover.contentViewController = content
             popover.appearance = NSAppearance(named: Theme.current.frameIsDark ? .darkAqua : .aqua)
@@ -118,11 +122,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 final class MainWindowController {
     private let store: MonitorStore
     private let cleaner: CleanerStore
+    private let quick: QuickListStore
     private var window: NSWindow?
 
-    init(store: MonitorStore, cleaner: CleanerStore) {
+    init(store: MonitorStore, cleaner: CleanerStore, quick: QuickListStore) {
         self.store = store
         self.cleaner = cleaner
+        self.quick = quick
     }
 
     func show() {
@@ -144,7 +150,7 @@ final class MainWindowController {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        let hosting = NSHostingView(rootView: MainWindowView().environment(store).environment(cleaner))
+        let hosting = NSHostingView(rootView: MainWindowView().environment(store).environment(cleaner).environment(quick))
         hosting.sizingOptions = [.minSize]
         window.contentView = hosting
         window.center()

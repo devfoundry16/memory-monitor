@@ -10,6 +10,8 @@ public struct AppIndex: Sendable {
 
     private var byBundleID: [String: App] = [:]
     private var byName: [String: App] = [:]
+    /// Every app found, one per bundle, sorted by name.
+    public private(set) var apps: [App] = []
 
     /// Reads each `.app` directly inside `directories`.
     public init(scanning directories: [URL]) {
@@ -23,6 +25,7 @@ public struct AppIndex: Sendable {
                       let bundleID = info["CFBundleIdentifier"] as? String else { continue }
                 let fileName = url.deletingPathExtension().lastPathComponent
                 let app = App(bundleID: bundleID, name: fileName, url: url)
+                apps.append(app)
                 byBundleID[bundleID.lowercased()] = byBundleID[bundleID.lowercased()] ?? app
                 for alias in [fileName, info["CFBundleName"] as? String, info["CFBundleDisplayName"] as? String,
                               info["CFBundleExecutable"] as? String].compactMap({ $0 }) {
@@ -30,6 +33,10 @@ public struct AppIndex: Sendable {
                 }
             }
         }
+        var seen: Set<String> = []
+        apps = apps
+            .filter { seen.insert($0.url.standardizedFileURL.path).inserted }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     public func app(bundleID: String) -> App? { byBundleID[bundleID.lowercased()] }

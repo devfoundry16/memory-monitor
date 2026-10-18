@@ -13,6 +13,8 @@ public struct AppGroup: Sendable, Equatable {
     public var cpuPercent: Double? { sum(\.cpuPercent) }
     /// Sum of members' share of GPU time, or `nil` before rates exist.
     public var gpuPercent: Double? { sum(\.gpuPercent) }
+    /// Sum of members' disk traffic in bytes per second, or `nil` before rates exist.
+    public var diskRate: Double? { sum(\.diskRate) }
 
     private func sum(_ keyPath: KeyPath<ProcessRow, Double?>) -> Double? {
         let values = members.compactMap { $0[keyPath: keyPath] }

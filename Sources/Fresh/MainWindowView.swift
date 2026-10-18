@@ -34,6 +34,7 @@ private enum Column {
     static let parent: CGFloat = 150
     static let memory: CGFloat = 96
     static let usage: CGFloat = 70
+    static let disk: CGFloat = 84
     static let threads: CGFloat = 66
     static let action: CGFloat = 104
 }
@@ -90,6 +91,8 @@ private struct ColumnHeader: View {
             header("Memory", .memory).frame(width: Column.memory, alignment: .trailing)
             header("CPU %", .cpu).frame(width: Column.usage, alignment: .trailing)
             header("GPU %", .gpu).frame(width: Column.usage, alignment: .trailing)
+            header("Disk", .disk).frame(width: Column.disk, alignment: .trailing)
+                .help("Bytes read and written per second")
             header("Threads", .threads).frame(width: Column.threads, alignment: .trailing)
             Color.clear.frame(width: Column.action)
         }
@@ -155,6 +158,12 @@ private struct ProcessRowView: View {
                 .font(Theme.Typeface.body).monospacedDigit()
                 .foregroundStyle(usageColor(item.gpuPercent, text: text, secondary: secondary))
                 .frame(width: Column.usage, alignment: .trailing)
+            Text(diskText)
+                .font(Theme.Typeface.body).monospacedDigit()
+                // Under 0.5 KB/s rounds to "0 KB/s": idle, so muted like the percentages.
+                .foregroundStyle((item.diskRate ?? 0) >= 500 ? text : secondary)
+                .frame(width: Column.disk, alignment: .trailing)
+                .help(diskHelp)
             Text(item.threads.map { String($0) } ?? "—")
                 .font(Theme.Typeface.body).monospacedDigit()
                 .foregroundStyle(secondary)
@@ -195,6 +204,21 @@ private struct ProcessRowView: View {
         guard let memory = item.memory else { return "—" }
         let prefix = (item.group?.restrictedCount ?? 0) > 0 ? "≥ " : ""
         return prefix + ByteFormatter.format(memory)
+    }
+
+    private var diskText: String {
+        guard let rate = item.diskRate else { return "—" }
+        let prefix = (item.group?.restrictedCount ?? 0) > 0 ? "≥ " : ""
+        return prefix + DiskFormatter.formatRate(rate)
+    }
+
+    /// The read/write split behind the Disk figure.
+    private var diskHelp: String {
+        guard item.diskRate != nil else { return "" }
+        let members = item.group?.members ?? [row.process]
+        let read = members.compactMap(\.diskReadRate).reduce(0, +)
+        let written = members.compactMap(\.diskWriteRate).reduce(0, +)
+        return "\(DiskFormatter.formatRate(read)) read · \(DiskFormatter.formatRate(written)) written"
     }
 
     private var stopTitle: String {

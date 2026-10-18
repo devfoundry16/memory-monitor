@@ -34,6 +34,30 @@ import Testing
     }
 }
 
+@Suite struct DiskFormatterTests {
+    @Test func sizes() {
+        #expect(DiskFormatter.format(0) == "0.0 MB")
+        #expect(DiskFormatter.format(512_300_000) == "512.3 MB")
+        #expect(DiskFormatter.format(245_300_000_000) == "245.3 GB")
+        #expect(DiskFormatter.format(1_820_000_000_000) == "1.82 TB")
+    }
+
+    @Test func roundingAtBoundariesSwitchesUnit() {
+        #expect(DiskFormatter.format(999_960_000) == "1.0 GB")
+        #expect(DiskFormatter.format(999_960_000_000) == "1.00 TB")
+        #expect(DiskFormatter.format(994_660_000_000) == "994.7 GB")
+    }
+
+    @Test func rates() {
+        #expect(DiskFormatter.formatRate(0) == "0 KB/s")
+        #expect(DiskFormatter.formatRate(-5) == "0 KB/s")
+        #expect(DiskFormatter.formatRate(512_000) == "512 KB/s")
+        #expect(DiskFormatter.formatRate(999_600) == "1.0 MB/s")
+        #expect(DiskFormatter.formatRate(12_340_000) == "12.3 MB/s")
+        #expect(DiskFormatter.formatRate(1_200_000_000) == "1.20 GB/s")
+    }
+}
+
 @Suite struct MemoryPressureTests {
     @Test func kernelLevels() {
         #expect(MemoryPressure(kernelLevel: 1) == .normal)

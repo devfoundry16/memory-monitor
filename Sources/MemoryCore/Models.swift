@@ -90,13 +90,27 @@ public struct ProcessRow: Identifiable, Sendable, Equatable {
     public var cpuPercent: Double?
     /// Share of GPU time over the last interval; 100 = the whole GPU. `nil` until two samples exist.
     public var gpuPercent: Double?
+    /// Bytes read from and written to disk since the process started. `nil` when the kernel
+    /// refuses to report it.
+    public var diskRead: UInt64?
+    public var diskWritten: UInt64?
+    /// Disk traffic over the last interval, in bytes per second. `nil` until two samples exist.
+    public var diskReadRate: Double?
+    public var diskWriteRate: Double?
+
+    /// Bytes read plus written per second, or `nil` before rates exist.
+    public var diskRate: Double? {
+        guard let diskReadRate, let diskWriteRate else { return nil }
+        return diskReadRate + diskWriteRate
+    }
 
     public var id: pid_t { pid }
     public var isRestricted: Bool { memory == nil || threads == nil }
 
     public init(
         pid: pid_t, ppid: pid_t = 0, responsiblePID: pid_t? = nil, name: String, uid: uid_t,
-        user: String, memory: UInt64?, threads: Int?, cpuTime: UInt64? = nil, startTime: UInt64? = nil
+        user: String, memory: UInt64?, threads: Int?, cpuTime: UInt64? = nil, startTime: UInt64? = nil,
+        diskRead: UInt64? = nil, diskWritten: UInt64? = nil
     ) {
         self.pid = pid
         self.ppid = ppid
@@ -108,6 +122,8 @@ public struct ProcessRow: Identifiable, Sendable, Equatable {
         self.threads = threads
         self.cpuTime = cpuTime
         self.startTime = startTime
+        self.diskRead = diskRead
+        self.diskWritten = diskWritten
     }
 }
 

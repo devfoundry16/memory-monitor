@@ -58,6 +58,10 @@ struct AppTheme: Identifiable {
     /// NVIDIA's green corner squares.
     let cornerMark: Bool
     let uppercaseLabels: Bool
+
+    /// Stat card titles. Defaults to the accent; set it where the accent matches `onFrame`,
+    /// so a title never looks like the number under it.
+    var cardTitle: Color? = nil
 }
 
 extension AppTheme {
@@ -178,7 +182,8 @@ extension AppTheme {
         warning: Color(hex: 0xF5A623), error: Color(hex: 0xEE0000), errorPressed: Color(hex: 0xC50000),
         controlRadius: 6, buttonRadius: 100, cardRadius: 12,
         textFamily: .system, headingFamily: .system, // Geist / Inter are not on macOS
-        cornerMark: false, uppercaseLabels: false)
+        cornerMark: false, uppercaseLabels: false,
+        cardTitle: Color(hex: 0x888888)) // the accent is the same near-black as the numbers
 }
 
 /// The selected theme. Views read it through `Theme`, so changing it re-renders everything.

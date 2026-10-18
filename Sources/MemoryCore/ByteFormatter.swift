@@ -26,3 +26,24 @@ public enum PercentFormatter {
         return "\(Int(max(0, percent)))%"
     }
 }
+
+/// Disk sizes and disk traffic, in decimal units (1 GB = 1000³ bytes) as Finder and
+/// System Settings ▸ Storage show them.
+public enum DiskFormatter {
+    /// "512.3 MB", "245.3 GB", "1.82 TB".
+    public static func format(_ bytes: UInt64) -> String {
+        let value = Double(bytes)
+        // Decide the unit after rounding, so 999.96 GB shows as "1.00 TB", not "1000.0 GB".
+        if (value / 1e9 * 10).rounded() / 10 >= 1000 { return String(format: "%.2f TB", value / 1e12) }
+        if (value / 1e6 * 10).rounded() / 10 >= 1000 { return String(format: "%.1f GB", value / 1e9) }
+        return String(format: "%.1f MB", value / 1e6)
+    }
+
+    /// "0 KB/s", "512 KB/s", "12.3 MB/s", "1.20 GB/s".
+    public static func formatRate(_ bytesPerSecond: Double) -> String {
+        let value = max(bytesPerSecond, 0)
+        if (value / 1e6 * 10).rounded() / 10 >= 1000 { return String(format: "%.2f GB/s", value / 1e9) }
+        if (value / 1e3).rounded() >= 1000 { return String(format: "%.1f MB/s", value / 1e6) }
+        return String(format: "%.0f KB/s", value / 1e3)
+    }
+}

@@ -37,22 +37,25 @@ struct ListItem: Identifiable {
     var threads: Int? { group?.threads ?? row.process.threads }
     var cpuPercent: Double? { group.map(\.cpuPercent) ?? row.process.cpuPercent }
     var gpuPercent: Double? { group.map(\.gpuPercent) ?? row.process.gpuPercent }
+    /// Bytes read plus written per second.
+    var diskRate: Double? { group.map(\.diskRate) ?? row.process.diskRate }
 }
 
 /// The resource the header tabs show; the list sorts by it when the tab changes.
 enum Resource: Hashable, CaseIterable {
-    case memory, cpu, gpu
+    case memory, cpu, gpu, disk
 }
 
 /// The window's tabs: one per resource, plus the cache cleaner.
 enum MainTab: Hashable, CaseIterable {
-    case memory, cpu, gpu, clean
+    case memory, cpu, gpu, disk, clean
 
     var resource: Resource? {
         switch self {
         case .memory: .memory
         case .cpu: .cpu
         case .gpu: .gpu
+        case .disk: .disk
         case .clean: nil
         }
     }
@@ -73,6 +76,7 @@ struct TopEntry: Identifiable {
     let memory: UInt64?
     let cpuPercent: Double?
     let gpuPercent: Double?
+    let diskRate: Double?
 }
 
 /// What a process belongs to: the app responsible for it (e.g. "Google Chrome" for a
@@ -87,7 +91,12 @@ struct ParentInfo {
 }
 
 enum SortKey: Hashable {
-    case name, pid, user, parent, memory, cpu, gpu, threads
+    case name, pid, user, parent, memory, cpu, gpu, disk, threads
+}
+
+/// The tabs in Settings.
+enum SettingsSection: Hashable {
+    case general, quickList
 }
 
 /// How far back the header graphs reach.
@@ -136,6 +145,10 @@ final class MonitorStore {
     private(set) var cpu: CPUUsage?
     private(set) var loadAverage: [Double] = []
     private(set) var gpu: GPUStats?
+    private(set) var volume: VolumeStats?
+    /// Local volumes other than the startup disk, such as external drives.
+    private(set) var otherVolumes: [VolumeStats] = []
+    private(set) var diskIO: DiskIO?
     let topology = CPUSampler.topology()
     let gpuInfo = GPUSampler.info()
     let bootTime = CPUSampler.bootTime()
@@ -154,13 +167,14 @@ final class MonitorStore {
             case .memory: .memory
             case .cpu: .cpu
             case .gpu: .gpu
+            case .disk: .disk
             }
         }
     }
 
     /// Recent values for the header graphs, as fractions of the whole (0...1):
     /// memory = app, wired, compressed, purgeable, hardware reserved; CPU = user, system;
-    /// GPU = device utilisation.
+    /// GPU = device utilisation. Disk is the exception: bytes per second read and written.
     private(set) var history = Dictionary(uniqueKeysWithValues: Resource.allCases.map {
         ($0, MetricHistory(span: GraphRange.oneHour.seconds))
     })
@@ -174,6 +188,8 @@ final class MonitorStore {
         didSet { menuBarSettings.save() }
     }
     var showingSettings = false
+    /// The Settings tab to show when Settings opens.
+    var settingsSection = SettingsSection.general
     private(set) var snapshot = ProcessSnapshot(rows: [], threadTotal: 0, restrictedCount: 0, ownCount: 0)
     private(set) var rows: [DisplayRow] = []
     private(set) var appCount = 0
@@ -203,6 +219,7 @@ final class MonitorStore {
     private var loop: Task<Void, Never>?
     private var previousTicks: CPUTicks?
     private var usageBaseline: UsageBaseline?
+    private var previousDisk: (counters: DiskIOCounters, time: Double)?
 
     init() {
         do {
@@ -213,22 +230,21 @@ final class MonitorStore {
         }
     }
 
-    /// Samples memory, CPU and GPU every second and the process list every two seconds.
+    /// Samples memory, CPU, GPU and disk traffic every second, the process list every two
+    /// seconds and disk space every ten.
     func start() {
         guard loop == nil else { return }
         loop = Task { [weak self] in
             var tick = 0
             while !Task.isCancelled {
-                await self?.refresh(includeProcesses: tick.isMultiple(of: 2))
+                await self?.refresh(includeProcesses: tick.isMultiple(of: 2), includeVolumes: tick.isMultiple(of: 10))
                 tick += 1
                 try? await Task.sleep(for: .seconds(1))
             }
         }
     }
 
-    private func recordHistory(memory: SystemMemory?, cpu: CPUUsage?, gpu: GPUStats?) {
-        // Keeps running while the Mac sleeps, so sleep shows as a gap in the graphs.
-        let now = Double(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)) / 1e9
+    private func recordHistory(memory: SystemMemory?, cpu: CPUUsage?, gpu: GPUStats?, disk: DiskIO?, at now: Double) {
         historyTime = now
         if let memory, memory.total > 0 {
             let parts = [memory.appMemory, memory.wired, memory.compressed, memory.purgeable, memory.hardwareReserved]
@@ -236,15 +252,19 @@ final class MonitorStore {
         }
         if let cpu { history[.cpu]?.append([cpu.user, cpu.system], at: now) }
         if let gpu { history[.gpu]?.append([gpu.device], at: now) }
+        if let disk { history[.disk]?.append([disk.readPerSecond, disk.writePerSecond], at: now) }
     }
 
-    func refresh(includeProcesses: Bool) async {
+    func refresh(includeProcesses: Bool, includeVolumes: Bool = false) async {
         let systemSampler = systemSampler
         let system = await Task.detached {
             (memory: systemSampler.map { sampler in Result { try sampler.sample() } },
              ticks: try? CPUSampler.ticks(),
              load: CPUSampler.loadAverage(),
-             gpu: GPUSampler.stats())
+             gpu: GPUSampler.stats(),
+             disk: DiskSampler.ioCounters(),
+             // Keeps running while the Mac sleeps, so sleep shows as a gap in the graphs.
+             time: Double(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)) / 1e9)
         }.value
 
         // Observation notifies on every assignment, so skip identical samples.
@@ -259,7 +279,18 @@ final class MonitorStore {
         }
         if system.load != loadAverage { loadAverage = system.load }
         if system.gpu != gpu { gpu = system.gpu }
-        recordHistory(memory: try? system.memory?.get(), cpu: system.ticks == nil ? nil : cpu, gpu: system.gpu)
+        var disk: DiskIO?
+        if let counters = system.disk {
+            if let previousDisk {
+                disk = DiskIO.rates(from: previousDisk.counters, to: counters, elapsed: system.time - previousDisk.time)
+            }
+            previousDisk = (counters, system.time)
+        }
+        if disk != diskIO { diskIO = disk }
+        recordHistory(memory: try? system.memory?.get(), cpu: system.ticks == nil ? nil : cpu, gpu: system.gpu,
+                      disk: disk, at: system.time)
+
+        if includeVolumes { refreshVolumes() }
 
         guard includeProcesses else { return }
         let sampler = processSampler
@@ -274,6 +305,22 @@ final class MonitorStore {
         snapshot = sampled
         usageBaseline = nextBaseline
         rebuildRows()
+    }
+
+    private var volumeTask: Task<Void, Never>?
+
+    /// Reads disk space in its own task: the startup disk's "available" figure can take a
+    /// moment, and the 1-second loop shouldn't wait for it.
+    private func refreshVolumes() {
+        guard volumeTask == nil else { return }
+        volumeTask = Task {
+            let (startup, others) = await Task.detached {
+                (DiskSampler.startupVolume(), DiskSampler.otherVolumes())
+            }.value
+            if startup != volume { volume = startup }
+            if others != otherVolumes { otherVolumes = others }
+            volumeTask = nil
+        }
     }
 
     private func rebuildRows() {
@@ -306,12 +353,12 @@ final class MonitorStore {
             guard let row = rowsByPID[group.appPID] else { return nil }
             return TopEntry(
                 id: row.id, name: row.displayName, icon: row.icon, memory: group.memory,
-                cpuPercent: group.cpuPercent, gpuPercent: group.gpuPercent)
+                cpuPercent: group.cpuPercent, gpuPercent: group.gpuPercent, diskRate: group.diskRate)
         }
         let standalone = rows.filter { !$0.isApp && owners[$0.id] == nil }.map {
             TopEntry(
                 id: $0.id, name: $0.displayName, icon: $0.icon, memory: $0.process.memory,
-                cpuPercent: $0.process.cpuPercent, gpuPercent: $0.process.gpuPercent)
+                cpuPercent: $0.process.cpuPercent, gpuPercent: $0.process.gpuPercent, diskRate: $0.process.diskRate)
         }
         topLevelEntries = appEntries + standalone
         topEntries = Array((appEntries + standalone).sorted { ($0.memory ?? 0) > ($1.memory ?? 0) }.prefix(5))
@@ -370,7 +417,7 @@ final class MonitorStore {
             visibleItems = rows
                 .filter { matches($0, needle) }
                 .map { Metrics(row: $0, memory: $0.process.memory, threads: $0.process.threads,
-                               cpu: $0.process.cpuPercent, gpu: $0.process.gpuPercent) }
+                               cpu: $0.process.cpuPercent, gpu: $0.process.gpuPercent, disk: $0.process.diskRate) }
                 .sorted(by: isOrderedBefore)
                 .map { ListItem(id: "p\($0.row.id)", row: $0.row, kind: .process) }
 
@@ -380,7 +427,7 @@ final class MonitorStore {
                 .compactMap { group -> Metrics? in
                     rowsByPID[group.appPID].map {
                         Metrics(row: $0, memory: group.memory, threads: group.threads,
-                                cpu: group.cpuPercent, gpu: group.gpuPercent)
+                                cpu: group.cpuPercent, gpu: group.gpuPercent, disk: group.diskRate)
                     }
                 }
                 .sorted(by: isOrderedBefore)
@@ -412,6 +459,7 @@ final class MonitorStore {
         let threads: Int?
         let cpu: Double?
         let gpu: Double?
+        let disk: Double?
     }
 
     /// Sort order shared by single processes and app groups.
@@ -436,8 +484,12 @@ final class MonitorStore {
             let (x, y) = (a.threads ?? -1, b.threads ?? -1)
             if x == y { return a.row.id < b.row.id }
             ordered = x < y
-        case .cpu, .gpu:
-            let (x, y) = sortKey == .cpu ? (a.cpu ?? -1, b.cpu ?? -1) : (a.gpu ?? -1, b.gpu ?? -1)
+        case .cpu, .gpu, .disk:
+            let (x, y) = switch sortKey {
+            case .cpu: (a.cpu ?? -1, b.cpu ?? -1)
+            case .gpu: (a.gpu ?? -1, b.gpu ?? -1)
+            default: (a.disk ?? -1, b.disk ?? -1)
+            }
             if x == y { return (a.memory ?? 0) < (b.memory ?? 0) }
             ordered = x < y
         }

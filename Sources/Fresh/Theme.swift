@@ -17,6 +17,7 @@ enum Theme {
         static var frameHairline: Color { current.frameHairline }
         static var onFrame: Color { current.onFrame }
         static var onFrameMute: Color { current.onFrameMute }
+        static var cardTitle: Color { current.cardTitle ?? current.accent }
 
         static var canvas: Color { current.canvas }
         static var surfaceSoft: Color { current.canvasSoft }
@@ -273,12 +274,13 @@ struct PillTabs<Value: Hashable>: View {
 /// `search-input`: 1px hairline border, 2px accent border when focused.
 struct SearchField: View {
     @Binding var text: String
+    var prompt = "Search processes"
     @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: Theme.Space.sm) {
             Image(systemName: "magnifyingglass").foregroundStyle(Theme.Palette.mute)
-            TextField("Search processes", text: $text)
+            TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
                 .font(Theme.Typeface.body)
                 .foregroundStyle(Theme.Palette.ink)

@@ -24,7 +24,8 @@ public struct ProcessSampler: Sendable {
                 pid: pid, ppid: ppid, responsiblePID: Self.responsiblePID(of: pid),
                 name: Self.name(of: pid), uid: uid, user: user,
                 memory: usage?.footprint, threads: threads,
-                cpuTime: usage?.cpuTime, startTime: usage?.startTime)
+                cpuTime: usage?.cpuTime, startTime: usage?.startTime,
+                diskRead: usage?.diskRead, diskWritten: usage?.diskWritten)
             rows.append(row)
             threadTotal += threads ?? 0
             if row.isRestricted { restricted += 1 }
@@ -98,7 +99,9 @@ public struct ProcessSampler: Sendable {
         ticks / timebase.denom * timebase.numer + ticks % timebase.denom * timebase.numer / timebase.denom
     }
 
-    static func resourceUsage(of pid: pid_t) -> (footprint: UInt64, cpuTime: UInt64, startTime: UInt64)? {
+    static func resourceUsage(
+        of pid: pid_t
+    ) -> (footprint: UInt64, cpuTime: UInt64, startTime: UInt64, diskRead: UInt64, diskWritten: UInt64)? {
         var info = rusage_info_v4()
         let result = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
@@ -107,7 +110,8 @@ public struct ProcessSampler: Sendable {
         }
         guard result == 0 else { return nil }
         let cpuTime = nanoseconds(fromMachTime: info.ri_user_time + info.ri_system_time)
-        return (info.ri_phys_footprint, cpuTime, info.ri_proc_start_abstime)
+        return (info.ri_phys_footprint, cpuTime, info.ri_proc_start_abstime,
+                info.ri_diskio_bytesread, info.ri_diskio_byteswritten)
     }
 
     static func threadCount(of pid: pid_t) -> Int? {

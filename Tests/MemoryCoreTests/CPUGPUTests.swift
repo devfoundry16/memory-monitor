@@ -85,6 +85,29 @@ import Testing
         #expect(rows[0].cpuPercent == nil)
     }
 
+    @Test func diskRatesFromDeltas() {
+        var rows = [ProcessRow(pid: 1, name: "p", uid: 501, user: "me", memory: 1, threads: 1, cpuTime: 0,
+                               startTime: 1, diskRead: 1_000, diskWritten: 0)]
+        let baseline = UsageRates.apply(to: &rows, gpuTimes: [:], now: 0, previous: nil)
+        #expect(rows[0].diskRate == nil)
+        rows = [ProcessRow(pid: 1, name: "p", uid: 501, user: "me", memory: 1, threads: 1, cpuTime: 0,
+                           startTime: 1, diskRead: 3_000, diskWritten: 4_000)]
+        _ = UsageRates.apply(to: &rows, gpuTimes: [:], now: 2_000_000_000, previous: baseline)
+        #expect(rows[0].diskReadRate == 1_000)
+        #expect(rows[0].diskWriteRate == 2_000)
+        #expect(rows[0].diskRate == 3_000)
+    }
+
+    @Test func reusedPIDGetsNoDiskRate() {
+        var rows = [ProcessRow(pid: 1, name: "p", uid: 501, user: "me", memory: 1, threads: 1,
+                               startTime: 1, diskRead: 0, diskWritten: 0)]
+        let baseline = UsageRates.apply(to: &rows, gpuTimes: [:], now: 0, previous: nil)
+        rows = [ProcessRow(pid: 1, name: "p", uid: 501, user: "me", memory: 1, threads: 1,
+                           startTime: 2, diskRead: 5_000, diskWritten: 0)]
+        _ = UsageRates.apply(to: &rows, gpuTimes: [:], now: 1_000_000_000, previous: baseline)
+        #expect(rows[0].diskRate == nil)
+    }
+
     @Test func groupSumsRates() {
         var app = row(10, cpu: 0)
         app.cpuPercent = 20
@@ -94,6 +117,12 @@ import Testing
         let group = AppGroup(appPID: 10, members: [app, helper])
         #expect(group.cpuPercent == 50.5)
         #expect(group.gpuPercent == 5)
+        #expect(group.diskRate == nil)
+
+        app.diskReadRate = 100
+        app.diskWriteRate = 50
+        let withDisk = AppGroup(appPID: 10, members: [app, helper])
+        #expect(withDisk.diskRate == 150)
     }
 }
 

@@ -1,18 +1,20 @@
 # Fresh
 
-A small menu bar app for macOS that shows how much memory, CPU and GPU your Mac is using, which apps are using it, and lets you force stop the ones you don't need.
+A small menu bar app for macOS that shows how much memory, CPU, GPU and disk your Mac is using, which apps are using it, and lets you force stop the ones you don't need.
 
 ## Features
 
-- **Menu bar readout.** Memory, CPU and GPU use at a glance. Choose which figures to show, with or without icons, and whether memory is a percentage, a size, or both.
-- **Quick look.** Click the menu bar item for memory pressure, the top memory users, and a shortcut to the full monitor.
-- **Full monitor window** with four tabs:
+- **Menu bar readout.** Memory, CPU and GPU use at a glance, and optionally disk. Choose which figures to show, with or without icons, whether memory is a percentage, a size, or both, and whether disk is the percentage used or the space free.
+- **Quick look.** Click the menu bar item for disk, memory, CPU and GPU tiles (choose which in Settings), the top memory users, and a shortcut to the full monitor.
+- **Quick List.** Pin the apps and folders you use most to the menu bar dropdown (Settings ▸ Quick List). Click one to open it, quit a running app from its row, or right-click to show it in Finder, take it off the list, or move it to the Trash. Settings can also quit every running app on the list at once, or move every folder on the list to the Trash at once. Moving to the Trash always asks first, quits an app before trashing it, never force-quits, and refuses macOS's own folders, your home folder and its standard folders, and Fresh itself.
+- **Full monitor window** with five tabs:
   - **Memory:** used, app, wired, compressed, cached and swap, measured the same way as Activity Monitor, plus macOS's own memory pressure level.
   - **CPU:** total, user and system load, per-core use (performance and efficiency cores shown separately), load averages and uptime.
   - **GPU:** overall, renderer and tiler use, and GPU memory.
+  - **Disk:** used, available, purgeable and free space on the startup disk (in the same units as Finder), data read and written per second, operations per second, and other mounted volumes.
   - **Clean:** finds caches that take up disk space and removes the ones you choose (see [Cache cleaner](#cache-cleaner)).
-- **History graphs** on the Memory, CPU and GPU tabs, over the last minute, 10 minutes or hour. Hover to see the values at any moment.
-- **Process list** with name, PID, user, parent, memory, CPU %, GPU % and threads. Sort by any column and search by name. By default, helper processes are grouped under the app they belong to, so an app's total includes all its helpers.
+- **History graphs** on the Memory, CPU, GPU and Disk tabs, over the last minute, 10 minutes or hour. Hover to see the values at any moment.
+- **Process list** with name, PID, user, parent, memory, CPU %, GPU %, disk traffic (bytes read and written per second) and threads. Sort by any column and search by name. By default, helper processes are grouped under the app they belong to, so an app's total includes all its helpers.
 - **Force Stop.** Ends an app with all its helpers, or any single process. Fresh asks politely first (SIGTERM), then forces it (SIGKILL) after 2 seconds. Stopping a process owned by another user or by the system asks for an administrator password. Fresh refuses to stop the kernel, `launchd` or itself, and warns before stopping processes that would end your session, such as `WindowServer`.
 - **Seven colour themes.**
 - **Light on resources:** about 1–2% CPU and under 50 MB of memory with the window open.

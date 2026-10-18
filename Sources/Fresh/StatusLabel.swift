@@ -19,6 +19,18 @@ enum StatusLabel {
     static func segments(for store: MonitorStore) -> [Segment] {
         let settings = store.menuBarSettings
         var segments: [Segment] = []
+        // Disk leads the bar when shown.
+        if settings.showDisk {
+            let text = store.volume.map { volume -> String in
+                switch settings.diskStyle {
+                case .percent: PercentFormatter.format(volume.usedFraction)
+                case .free: DiskFormatter.format(volume.available)
+                }
+            } ?? "—"
+            segments.append(Segment(
+                symbol: Resource.disk.symbol, text: text,
+                widest: settings.diskStyle == .percent ? [widestPercent] : ["888.8 GB", "8.88 TB"]))
+        }
         if settings.showMemory {
             let text = store.memory.map { memory -> String in
                 let size = ByteFormatter.format(memory.used)

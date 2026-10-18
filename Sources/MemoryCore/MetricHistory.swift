@@ -1,3 +1,5 @@
+import Foundation
+
 /// A rolling record of a few related values over time, such as app memory, wired and
 /// compressed, for drawing as a stacked graph.
 public struct MetricHistory: Sendable, Equatable {
@@ -85,5 +87,18 @@ extension RandomAccessCollection {
             if predicate(self[mid]) { high = mid } else { low = index(after: mid) }
         }
         return low
+    }
+}
+
+extension MetricHistory {
+    /// The smallest of 1, 2 or 5 × 10ⁿ at or above `value`: a readable top for a graph
+    /// whose values have no natural maximum, such as disk traffic.
+    public static func niceCeiling(_ value: Double) -> Double {
+        guard value > 0, value.isFinite else { return 1 }
+        let magnitude = pow(10, floor(log10(value)))
+        for step in [1.0, 2, 5, 10] where step * magnitude >= value * (1 - 1e-9) {
+            return step * magnitude
+        }
+        return 10 * magnitude
     }
 }
