@@ -14,7 +14,11 @@ struct MainWindowView: View {
                     SettingsSheet()
                 }
             Group {
-                if store.tab == .clean { CleanerListView() } else { ProcessListView() }
+                switch store.tab {
+                case .clean: CleanerListView()
+                case .alerts: AlertsView()
+                default: ProcessListView()
+                }
             }
             .environment(\.colorScheme, Theme.bodyScheme)
         }

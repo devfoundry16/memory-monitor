@@ -7,12 +7,19 @@ A small menu bar app for macOS that shows how much memory, CPU, GPU and disk you
 - **Menu bar readout.** Memory, CPU and GPU use at a glance, and optionally disk. Choose which figures to show, with or without icons, whether memory is a percentage, a size, or both, and whether disk is the percentage used or the space free.
 - **Quick look.** Click the menu bar item for disk, memory, CPU and GPU tiles (choose which in Settings), the top memory users, and a shortcut to the full monitor.
 - **Quick List.** Pin the apps and folders you use most to the menu bar dropdown (Settings ▸ Quick List). Click one to open it, quit a running app from its row, or right-click to show it in Finder, take it off the list, or move it to the Trash. Settings can also quit every running app on the list at once, or move every folder on the list to the Trash at once. Moving to the Trash always asks first, quits an app before trashing it, never force-quits, and refuses macOS's own folders, your home folder and its standard folders, and Fresh itself.
-- **Full monitor window** with five tabs:
+- **Full monitor window** with six tabs:
   - **Memory:** used, app, wired, compressed, cached and swap, measured the same way as Activity Monitor, plus macOS's own memory pressure level.
   - **CPU:** total, user and system load, per-core use (performance and efficiency cores shown separately), load averages and uptime.
   - **GPU:** overall, renderer and tiler use, and GPU memory.
   - **Disk:** used, available, purgeable and free space on the startup disk (in the same units as Finder), data read and written per second, operations per second, and other mounted volumes.
   - **Clean:** finds caches that take up disk space and removes the ones you choose (see [Cache cleaner](#cache-cleaner)).
+  - **Alerts:** an IP watch and your own reminders. The IP watch checks every few minutes which country an IP is in, from this Mac or from another machine over SSH (such as a VM behind a VPN), and alerts when it leaves the expected country, when the check fails, and when it's back. Reminders go off once, daily, on chosen weekdays, or every few minutes. Every alert has its own text, macOS sound and repeat count, and a Test button. Alerts only go off while Fresh is running.
+
+    When the last check says the IP is outside the expected country or couldn't be checked, a **Restart VPN** button appears in the header. It runs `sudo -n systemctl restart <VPN service>` on the SSH host, waits 12 seconds, then checks again. Because it can't type a password, the host must allow that one command without one, for example in `/etc/sudoers.d/fresh-vpn-restart`:
+
+    ```
+    youruser ALL=(root) NOPASSWD: /usr/bin/systemctl restart wg-quick@us-sea
+    ```
 - **History graphs** on the Memory, CPU, GPU and Disk tabs, over the last minute, 10 minutes or hour. Hover to see the values at any moment.
 - **Process list** with name, PID, user, parent, memory, CPU %, GPU %, disk traffic (bytes read and written per second) and threads. Sort by any column and search by name. By default, helper processes are grouped under the app they belong to, so an app's total includes all its helpers.
 - **Force Stop.** Ends an app with all its helpers, or any single process. Fresh asks politely first (SIGTERM), then forces it (SIGKILL) after 2 seconds. Stopping a process owned by another user or by the system asks for an administrator password. Fresh refuses to stop the kernel, `launchd` or itself, and warns before stopping processes that would end your session, such as `WindowServer`.

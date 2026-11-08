@@ -19,7 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = MonitorStore()
     private let cleaner = CleanerStore()
     private let quick = QuickListStore()
-    private lazy var mainWindow = MainWindowController(store: store, cleaner: cleaner, quick: quick)
+    private let alerts = NotificationStore()
+    private lazy var mainWindow = MainWindowController(store: store, cleaner: cleaner, quick: quick, alerts: alerts)
     private var statusItem: StatusItemController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.start()
+        alerts.start()
         statusItem = StatusItemController(
             store: store, quick: quick,
             onOpenMonitor: { [weak self] in
@@ -123,12 +125,14 @@ final class MainWindowController {
     private let store: MonitorStore
     private let cleaner: CleanerStore
     private let quick: QuickListStore
+    private let alerts: NotificationStore
     private var window: NSWindow?
 
-    init(store: MonitorStore, cleaner: CleanerStore, quick: QuickListStore) {
+    init(store: MonitorStore, cleaner: CleanerStore, quick: QuickListStore, alerts: NotificationStore) {
         self.store = store
         self.cleaner = cleaner
         self.quick = quick
+        self.alerts = alerts
     }
 
     func show() {
@@ -150,7 +154,7 @@ final class MainWindowController {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        let hosting = NSHostingView(rootView: MainWindowView().environment(store).environment(cleaner).environment(quick))
+        let hosting = NSHostingView(rootView: MainWindowView().environment(store).environment(cleaner).environment(quick).environment(alerts))
         hosting.sizingOptions = [.minSize]
         window.contentView = hosting
         window.center()

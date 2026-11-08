@@ -29,6 +29,7 @@ struct HeaderView: View {
             case .gpu: GPUHeader()
             case .disk: DiskHeader()
             case .clean: CleanerHeader()
+            case .alerts: AlertsHeader()
             }
 
             if let error = store.errorMessage {
@@ -74,8 +75,8 @@ private struct MainTabs: View {
 }
 
 extension MainTab {
-    var title: String { resource?.title ?? "Clean" }
-    var symbol: String { resource?.symbol ?? "sparkles" }
+    var title: String { resource?.title ?? (self == .alerts ? "Alerts" : "Clean") }
+    var symbol: String { resource?.symbol ?? (self == .alerts ? "bell" : "sparkles") }
 }
 
 extension Resource {

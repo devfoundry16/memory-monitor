@@ -184,7 +184,7 @@ private struct ThemeCard: View {
 }
 
 /// A checkbox with an icon and a title.
-private struct CheckRow: View {
+struct CheckRow: View {
     let title: String
     let symbol: String
     @Binding var isOn: Bool

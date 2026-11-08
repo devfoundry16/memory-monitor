@@ -48,7 +48,7 @@ enum Resource: Hashable, CaseIterable {
 
 /// The window's tabs: one per resource, plus the cache cleaner.
 enum MainTab: Hashable, CaseIterable {
-    case memory, cpu, gpu, disk, clean
+    case memory, cpu, gpu, disk, clean, alerts
 
     var resource: Resource? {
         switch self {
@@ -56,7 +56,7 @@ enum MainTab: Hashable, CaseIterable {
         case .cpu: .cpu
         case .gpu: .gpu
         case .disk: .disk
-        case .clean: nil
+        case .clean, .alerts: nil
         }
     }
 }
